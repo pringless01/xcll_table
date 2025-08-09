@@ -1,0 +1,8 @@
+// excel-exporter.js - global exporter
+(function(){
+  async function ensureXLSX(){ if(typeof XLSX!=='undefined') return true; return new Promise(resolve=>{ const s=document.createElement('script'); s.src=chrome.runtime.getURL('libs/xlsx.full.min.js'); s.onload=()=>resolve(true); document.head.appendChild(s); }); }
+  function buildAOA(cells){ const tableMap=new Map(); cells.forEach(cell=>{ const table=cell.closest('table'); if(!table) return; if(!tableMap.has(table)) tableMap.set(table,new Set()); tableMap.get(table).add(cell); }); const aoa=[]; tableMap.forEach((cellSet,table)=>{ for(let r=0;r<table.rows.length;r++){ const row=table.rows[r]; const rowData=[]; let any=false; for(let c=0;c<row.cells.length;c++){ const cell=row.cells[c]; if(cellSet.has(cell)||cell.classList.contains('eh-selected')){ rowData.push(cell.textContent.trim()); any=true; } else { rowData.push(''); } } if(any) aoa.push(rowData); } aoa.push([]); }); if(aoa.length&&aoa[aoa.length-1].length===0) aoa.pop(); return aoa; }
+  async function exportSelectionToExcel(){ const cells=window.ExcelHelperNS.getSelectedCells(); if(!cells.length){ alert('Lütfen önce seçim yapın'); return; } await ensureXLSX(); const aoa=buildAOA(cells); const ws=XLSX.utils.aoa_to_sheet(aoa); const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'SeciliVeriler'); const filename='secili-veriler-'+new Date().toISOString().slice(0,10)+'.xlsx'; XLSX.writeFile(wb,filename); }
+  function getSelectionAOA(){ const cells=window.ExcelHelperNS.getSelectedCells(); if(!cells.length) return []; return buildAOA(cells); }
+  window.ExcelHelperNS = window.ExcelHelperNS || {}; Object.assign(window.ExcelHelperNS,{exportSelectionToExcel, getSelectionAOA});
+})();

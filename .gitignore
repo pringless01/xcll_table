@@ -1,0 +1,15 @@
+# Chrome extension project gitignore
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+# Node / build artifacts (future)
+node_modules/
+dist/
+build/
+# Package locks (add if you start using npm/yarn)
+# package-lock.json
+# yarn.lock
+# Temporary backups
+backup-*.zip
