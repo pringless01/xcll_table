@@ -1,7 +1,7 @@
 // settings.js - Global settings (non-ESM build)
 
 (function(){
-  const DEFAULTS = { toolbarPosition:{x:10,y:10}, selectionMode:true, autoSaveSettings:true, toolbarVisible:true };
+  const DEFAULTS = { toolbarPosition:{x:10,y:10}, selectionMode:true, autoSaveSettings:true, toolbarVisible:true, lastFilterActiveCount:0 };
   let current = { ...DEFAULTS }; let loaded=false;
   async function loadSettings(){ if(loaded) return current; try { const result = await new Promise(r=>chrome.storage.local.get(['excelHelperSettings'],d=>r(d.excelHelperSettings||{}))); current={...DEFAULTS,...result}; loaded=true; } catch(e){ console.warn('[settings] load failed',e);} return current; }
   function getSettings(){ return current; }
