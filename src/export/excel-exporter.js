@@ -1,13 +1,23 @@
 // excel-exporter.js - global exporter
 (function () {
   async function ensureXLSX() {
+    // İçerik dünyasında global XLSX mevcutsa doğrudan kullan
     if (typeof XLSX !== 'undefined') return true;
-    return new Promise((resolve) => {
-      const s = document.createElement('script');
-      s.src = chrome.runtime.getURL('libs/xlsx.full.min.js');
-      s.onload = () => resolve(true);
-      document.head.appendChild(s);
-    });
+    // Aksi halde background'a MAIN dünyasına enjeksiyon talebi gönder (CSP uyumlu)
+    try {
+      const resp = await new Promise((resolve) => {
+        try {
+          chrome.runtime.sendMessage({ type: 'EH_INJECT_XLSX_BRIDGE' }, (r) => resolve(r));
+        } catch (e) {
+          resolve({ ok: false, err: String(e && e.message || e) });
+        }
+      });
+      if (!resp || !resp.ok) throw new Error(resp && resp.err || 'inject failed');
+      return true;
+    } catch (e) {
+      console.error('[EH] ensureXLSX bridge failed', e);
+      return false;
+    }
   }
   // Basit değer parse (sayı / tarih / metin)
   function parseCellValue(raw) {
@@ -109,17 +119,32 @@
   async function exportSelectionToExcel() {
     const cells = window.ExcelHelperNS.getSelectedCells();
     if (!cells.length) {
-      alert('Lütfen önce seçim yapın');
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      alert(t('please_select_first') || 'Lütfen önce seçim yapın');
+      return;
+    }
+    const aoa = buildAOA(cells);
+    // İçerik dünyasında XLSX varsa doğrudan kullan; yoksa köprüye event gönder
+    if (typeof XLSX !== 'undefined') {
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      const wb = XLSX.utils.book_new();
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      XLSX.utils.book_append_sheet(wb, ws, t('sheet_name') || 'SeciliVeriler');
+      const filename = (t('file_base_name') || 'secili-veriler') + '-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+      XLSX.writeFile(wb, filename);
       return;
     }
     await ensureXLSX();
-    const aoa = buildAOA(cells);
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'SeciliVeriler');
-    const filename =
-      'secili-veriler-' + new Date().toISOString().slice(0, 10) + '.xlsx';
-    XLSX.writeFile(wb, filename);
+    const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+    const filename = (t('file_base_name') || 'secili-veriler') + '-' + new Date().toISOString().slice(0, 10) + '.xlsx';
+    try {
+      const ev = new CustomEvent('excel-helper:export-xlsx', { detail: { aoa, filename }, bubbles: true, composed: true });
+      document.dispatchEvent(ev);
+    } catch (e) {
+      console.error('[EH] excel export dispatch failed', e);
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      alert(t('excel_export_failed') || 'Excel dışa aktarım başarısız');
+    }
   }
   function getSelectionAOA() {
     const cells = window.ExcelHelperNS.getSelectedCells();
@@ -131,7 +156,8 @@
       ? window.ExcelHelperNS.getSelectedCells()
       : [];
     if (!cells.length) {
-      alert('Lütfen önce seçim yapın');
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      alert(t('please_select_first') || 'Lütfen önce seçim yapın');
       return;
     }
     const aoa =
@@ -139,7 +165,8 @@
         ? window.ExcelHelperNS.getSelectionAOA()
         : getSelectionAOA();
     if (!aoa.length) {
-      alert('Veri yok');
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      alert(t('data_none') || 'Veri yok');
       return;
     }
     const lines = aoa.map((row) =>
@@ -167,8 +194,8 @@
     });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download =
-      'secili-veriler-' + new Date().toISOString().slice(0, 10) + '.csv';
+  const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+  a.download = (t('file_base_name') || 'secili-veriler') + '-' + new Date().toISOString().slice(0, 10) + '.csv';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }

@@ -16,7 +16,7 @@
     panel = document.createElement('div');
     panel.id = 'eh-floating-totals';
     panel.style.cssText =
-      'position:fixed;left:0;bottom:0;z-index:10001;background:rgba(250,250,250,0.97);backdrop-filter:blur(4px);border-top:1px solid #ccc;padding:4px 6px 6px;max-width:100%;overflow:auto;font:12px system-ui;box-shadow:0 -2px 6px rgba(0,0,0,.08);';
+      'position:fixed;left:0;bottom:0;z-index:2147483647;background:rgba(14,15,19,0.92);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);border-top:1px solid rgba(255,255,255,.06);padding:6px 8px;max-width:100%;overflow:auto;font:12px system-ui;color:#e7e7ea;box-shadow:0 -8px 24px rgba(0,0,0,.28);';
     document.body.appendChild(panel);
     return panel;
   }
@@ -83,43 +83,42 @@
     if (!colMap || !widths.length) return '';
     let tds = [];
     tds.push(
-      `<td style="width:${widths[0]}px;font-weight:600;background:#eef;padding:3px 6px;border:1px solid #ccd;white-space:nowrap;">SEÇİM</td>`
+  `<td style="width:${widths[0]}px;font-weight:600;background:#141824;padding:4px 8px;border:1px solid rgba(255,255,255,.06);white-space:nowrap;border-radius:6px 0 0 6px;">${(window.ExcelHelperNS&&window.ExcelHelperNS.t&&window.ExcelHelperNS.t('totals_selection_label'))||'SEÇİM'}</td>`
     );
     for (let i = 1; i < widths.length; i++) {
       const w = widths[i];
       if (colMap.has(i)) {
         const d = colMap.get(i);
-        const extra =
-          d.count > 1 ? ` <span style=\"opacity:.6\">(${d.count})</span>` : '';
+        const extra = d.count > 1 ? ` <span style=\"opacity:.6\">(${d.count})</span>` : '';
         tds.push(
-          `<td style="width:${w}px;max-width:${w}px;text-align:right;padding:3px 6px;border:1px solid #ccd;background:#f6fbff;white-space:nowrap;overflow:hidden;"><strong>${fmt(d.sum)}</strong>${extra}</td>`
+          `<td style="width:${w}px;max-width:${w}px;text-align:right;padding:4px 8px;border:1px solid rgba(255,255,255,.06);background:#161a22;white-space:nowrap;overflow:hidden;">`+
+          `<strong>${fmt(d.sum)}</strong>${extra}</td>`
         );
       } else {
         tds.push(
-          `<td style="width:${w}px;max-width:${w}px;text-align:center;padding:3px 6px;border:1px solid #ccd;color:#999;background:#fafafa;white-space:nowrap;">-</td>`
+          `<td style="width:${w}px;max-width:${w}px;text-align:center;padding:4px 8px;border:1px solid rgba(255,255,255,.06);color:#9aa3b2;background:#12151c;white-space:nowrap;">-</td>`
         );
       }
     }
-    return `<table style='border-collapse:collapse;font:12px system-ui;margin:0 0 4px 0;table-layout:fixed;'><tr>${tds.join('')}</tr></table>`;
+    return `<table style='border-collapse:collapse;font:12px system-ui;margin:0 0 6px 0;table-layout:fixed;'><tr>${tds.join('')}</tr></table>`;
   }
   function buildGrandRow(colMap, widths) {
     if (!colMap || !widths.length) return '';
     let tds = [];
     tds.push(
-      `<td style="width:${widths[0]}px;font-weight:600;background:#ffe9c2;padding:3px 6px;border:1px solid #ddb;white-space:nowrap;">GENEL</td>`
+  `<td style="width:${widths[0]}px;font-weight:600;background:#1b1e28;padding:4px 8px;border:1px solid rgba(255,255,255,.06);white-space:nowrap;border-radius:6px 0 0 6px;">${(window.ExcelHelperNS&&window.ExcelHelperNS.t&&window.ExcelHelperNS.t('totals_grand_label'))||'GENEL'}</td>`
     );
     for (let i = 1; i < widths.length; i++) {
       const w = widths[i];
       if (colMap.has(i)) {
         const d = colMap.get(i);
-        const extra =
-          d.count > 1 ? ` <span style='opacity:.6'>(${d.count})</span>` : '';
+        const extra = d.count > 1 ? ` <span style='opacity:.6'>(${d.count})</span>` : '';
         tds.push(
-          `<td style="width:${w}px;max-width:${w}px;text-align:right;padding:3px 6px;border:1px solid #ddb;background:#fff6e5;white-space:nowrap;overflow:hidden;"><strong>${fmt(d.sum)}</strong>${extra}</td>`
+          `<td style="width:${w}px;max-width:${w}px;text-align:right;padding:4px 8px;border:1px solid rgba(255,255,255,.06);background:#161a22;white-space:nowrap;overflow:hidden;"><strong>${fmt(d.sum)}</strong>${extra}</td>`
         );
       } else {
         tds.push(
-          `<td style="width:${w}px;max-width:${w}px;text-align:center;padding:3px 6px;border:1px solid #ddb;color:#999;background:#fffdf7;white-space:nowrap;">-</td>`
+          `<td style="width:${w}px;max-width:${w}px;text-align:center;padding:4px 8px;border:1px solid rgba(255,255,255,.06);color:#9aa3b2;background:#12151c;white-space:nowrap;">-</td>`
         );
       }
     }
@@ -146,11 +145,11 @@
       const widths = getColumnWidths(table);
       let html = buildSelectionRow(selMap, widths);
       if (grandWorking) {
-        html += `<div style='font:11px system-ui;margin:2px 0;color:#555;'>GENEL HESAPLANIYOR %${Math.round(grandProgress * 100)}</div>`;
+  html += `<div style='font:11px system-ui;margin:4px 0;color:#9aa3b2;'>${(window.ExcelHelperNS&&window.ExcelHelperNS.t&&window.ExcelHelperNS.t('totals_compute_progress',[Math.round(grandProgress*100)]))||('GENEL HESAPLANIYOR %'+Math.round(grandProgress*100))}</div>`;
       } else if (grandTotals) {
         html += buildGrandRow(grandTotals, widths);
       } else {
-        html += `<button id='eh-grand-btn' style='padding:3px 8px;font:11px system-ui;border:1px solid #bbb;background:#fff;border-radius:4px;cursor:pointer;'>GENEL TOPLAM</button>`;
+  html += `<button id='eh-grand-btn' style='padding:6px 10px;font:12px system-ui;border:1px solid rgba(255,255,255,.06);background:#2B6EFF;color:#fff;border-radius:8px;cursor:pointer;'>${(window.ExcelHelperNS&&window.ExcelHelperNS.t&&window.ExcelHelperNS.t('totals_grand_button'))||'GENEL TOPLAM'}</button>`;
       }
       p.innerHTML = html;
       const btn = p.querySelector('#eh-grand-btn');
@@ -168,7 +167,7 @@
     const colCount = table.rows[0] ? table.rows[0].cells.length : 0;
     if (!rowCount || !colCount) return;
     if (rowCount * colCount > GRAND_CELL_LIMIT) {
-      alert('Tablo çok büyük, genel toplam iptal (limit)');
+  alert((window.ExcelHelperNS&&window.ExcelHelperNS.t&&window.ExcelHelperNS.t('too_big_cancelled'))||'Tablo çok büyük, genel toplam iptal (limit)');
       return;
     }
     grandWorking = true;

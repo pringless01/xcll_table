@@ -11,8 +11,9 @@
     if (state.els.pasteBubble) return state.els.pasteBubble;
     const el = document.createElement('div');
     el.className = 'hkyy-paste-bubble';
+    const t = (rootNS.t||(()=>null));
     el.innerHTML =
-      '<div class="hkyy-paste-row"><button class="hkyy-btn" id="hkyy-btn-paste">Yapıştır</button><button class="hkyy-btn primary" id="hkyy-btn-clearpaste">Boşalt & Yapıştır</button></div>';
+      '<div class="hkyy-paste-row"><button class="hkyy-btn" id="hkyy-btn-paste">'+(t('paste_label')||'Yapıştır')+'</button><button class="hkyy-btn primary" id="hkyy-btn-clearpaste">'+(t('clearpaste_label')||'Boşalt & Yapıştır')+'</button></div>';
     el.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -57,7 +58,8 @@
       if (!text && state.lastCopied) text = state.lastCopied;
       insertText(target, text || '', clearBefore);
       hide(ensurePasteBubble());
-      showToast(clearBefore ? 'Boşaltıldı & Yapıştırıldı' : 'Yapıştırıldı');
+  const t = (rootNS.t||(()=>null));
+  showToast(clearBefore ? (t('cleared_and_pasted')||'Boşaltıldı & Yapıştırıldı') : (t('pasted')||'Yapıştırıldı'));
     });
   }
   function insertText(el, text, clearBefore) {

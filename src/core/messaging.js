@@ -5,7 +5,10 @@
   };
   function sumSelection() {
     const cells = window.ExcelHelperNS.getSelectedCells();
-    if (!cells.length) return { success: false, message: 'Seçim yok' };
+    if (!cells.length) {
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      return { success: false, message: t('selection_none') || 'Seçim yok' };
+    }
     const nums = cells
       .map((c) => window.ExcelHelperNS.parseNumericValue(c.textContent))
       .filter((v) => !isNaN(v));
@@ -14,7 +17,10 @@
   }
   function copySelection() {
     const aoa = window.ExcelHelperNS.getSelectionAOA();
-    if (!aoa.length) return { success: false, message: 'Seçim yok' };
+    if (!aoa.length) {
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      return { success: false, message: t('selection_none') || 'Seçim yok' };
+    }
     const tsvEscape = (s) =>
       /["\t\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     const cellToString = (cell) => {
@@ -40,7 +46,8 @@
         count: aoa.reduce((a, r) => a + r.filter((v) => v !== '').length, 0),
       };
     } catch {
-      return { success: false, message: 'Clipboard erişilemedi' };
+      const t = (window.ExcelHelperNS && window.ExcelHelperNS.t) || (()=>null);
+      return { success: false, message: t('clipboard_unavailable') || 'Clipboard erişilemedi' };
     }
   }
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

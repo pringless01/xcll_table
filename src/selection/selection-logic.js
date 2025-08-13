@@ -14,6 +14,13 @@
   let frameScheduled = false;
   let pendingRect = null;
   let prevRect = null;
+  // autoscroll state
+  let lastPointerX = 0;
+  let lastPointerY = 0;
+  let autoScrollRAF = 0;
+  let scrollContainer = null;
+  const EDGE_THRESHOLD = 60; // px
+  const MAX_SPEED = 24; // px per frame (~1440px/s at 60fps)
 
   function suppressNative(e) {
     if (!window.ExcelHelperNS.getSettings().selectionMode) return;
@@ -56,6 +63,9 @@
       selectionStart = { row: rowIndex, col: colIndex };
     }
     isMouseDown = true;
+  // determine scroll container once per drag
+  scrollContainer = findScrollContainer(activeTable) || document.scrollingElement || document.documentElement;
+  startAutoScroll();
     prevRect = null;
     document.body.classList.add('eh-selecting');
     e.preventDefault();
@@ -223,6 +233,71 @@
         window.ExcelHelperNS.updateToolbarStats();
     });
   }
+  function onMouseMove(e) {
+    if (!isMouseDown) return;
+    lastPointerX = e.clientX;
+    lastPointerY = e.clientY;
+  }
+  function findScrollContainer(el) {
+    try {
+      let node = el;
+      while (node && node !== document.body && node !== document.documentElement) {
+        const cs = window.getComputedStyle(node);
+        const ovY = cs.overflowY;
+        if ((ovY === 'auto' || ovY === 'scroll') && node.scrollHeight > node.clientHeight + 1) {
+          return node;
+        }
+        node = node.parentElement;
+      }
+    } catch (_) {
+      // no-op
+    }
+    return document.scrollingElement || document.documentElement;
+  }
+  function startAutoScroll() {
+    if (autoScrollRAF) return;
+    const step = () => {
+      autoScrollRAF = 0;
+      if (!isMouseDown || !selectionStart) return; // stop
+      // detect proximity to viewport edges
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      const topDist = lastPointerY;
+      const botDist = vh - lastPointerY;
+      let dy = 0;
+      if (topDist >= 0 && topDist < EDGE_THRESHOLD) {
+        const ratio = (EDGE_THRESHOLD - topDist) / EDGE_THRESHOLD;
+        dy = -Math.ceil(ratio * MAX_SPEED);
+      } else if (botDist >= 0 && botDist < EDGE_THRESHOLD) {
+        const ratio = (EDGE_THRESHOLD - botDist) / EDGE_THRESHOLD;
+        dy = Math.ceil(ratio * MAX_SPEED);
+      }
+      if (dy !== 0 && scrollContainer) {
+        const maxScroll = (scrollContainer.scrollHeight || 0) - (scrollContainer.clientHeight || 0);
+        const cur = scrollContainer.scrollTop || 0;
+        const next = Math.max(0, Math.min(maxScroll, cur + dy));
+        if (next !== cur) {
+          scrollContainer.scrollTop = next;
+          // As content moves under pointer, ensure selection keeps updating even if mouseover doesn't fire.
+          const el = document.elementFromPoint(lastPointerX, lastPointerY);
+          if (el && activeTable && (el.closest && el.closest('table') === activeTable)) {
+            const cell = el.closest('td, th');
+            if (cell) {
+              const rowIndex = cell.parentElement.rowIndex;
+              const colIndex = cell.cellIndex;
+              const key = rowIndex + ':' + colIndex;
+              if (key !== lastHoverKey) {
+                lastHoverKey = key;
+                pendingRect = { rowIndex, colIndex };
+                scheduleFrame();
+              }
+            }
+          }
+        }
+      }
+      autoScrollRAF = requestAnimationFrame(step);
+    };
+    autoScrollRAF = requestAnimationFrame(step);
+  }
   function onTableMouseEnter(e) {
     if (!isMouseDown || !selectionStart) return;
     const cell = e.target.closest('td, th');
@@ -256,6 +331,10 @@
     activeTable = null;
     baseSnapshot = null;
     prevRect = null;
+    if (autoScrollRAF) {
+      cancelAnimationFrame(autoScrollRAF);
+      autoScrollRAF = 0;
+    }
     document.body.classList.remove('eh-selecting');
   }
   function onDocumentClick(e) {
@@ -263,6 +342,9 @@
     if (!settings.selectionMode) return;
     const toolbar = document.getElementById('excel-helper-toolbar');
     if (toolbar && (toolbar === e.target || toolbar.contains(e.target))) return;
+  // Reco UI (kopyala baloncuğu ve diğerleri) içinde tıklama seçimleri temizlememeli
+  const recoRoot = document.getElementById('hkyy-root');
+  if (recoRoot && (recoRoot === e.target || recoRoot.contains(e.target))) return;
     const totals = document.getElementById('eh-floating-totals');
     if (totals && (totals === e.target || totals.contains(e.target))) return;
     if (
@@ -280,6 +362,7 @@
     if (window.__EH_SELECTION_EVENTS_ATTACHED) return;
     window.__EH_SELECTION_EVENTS_ATTACHED = true;
     document.addEventListener('mousedown', onTableMouseDown, { capture: true });
+  document.addEventListener('mousemove', onMouseMove, true);
     document.addEventListener('mouseover', onTableMouseEnter, true);
     document.addEventListener('mouseup', onMouseUp, true);
     document.addEventListener('selectstart', suppressNative, true);

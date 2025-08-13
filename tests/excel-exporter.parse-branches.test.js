@@ -31,23 +31,15 @@ describe('excel-exporter parse branches', () => {
     expect(aoa[0][3].t).toBe('d');
   });
 
-  test('exportSelectionToExcel ensures XLSX present via ensureXLSX', async () => {
+  test('exportSelectionToExcel dispatches page-bridge event when XLSX absent', async () => {
     delete global.XLSX;
-    // Provide minimal XLSX after ensureXLSX fires onload
-    setTimeout(() => {
-      global.XLSX = {
-        utils: {
-          aoa_to_sheet: (aoa)=>({ aoa }),
-          book_new: ()=>({ sheets: [] }),
-          book_append_sheet: (wb, ws)=>{ wb.sheets.push(ws); }
-        },
-        writeFile: jest.fn()
-      };
-    }, 0);
     // Minimal selection for export
     const td = document.createElement('td'); td.textContent = '1';
     window.ExcelHelperNS.getSelectedCells = () => [td];
+    const spy = jest.spyOn(document, 'dispatchEvent');
     await window.ExcelHelperNS.exportSelectionToExcel();
-    expect(global.XLSX && global.XLSX.writeFile).toBeTruthy();
+    const calledWithBridgeEvent = spy.mock.calls.some((args) => args[0] && args[0].type === 'excel-helper:export-xlsx');
+    expect(calledWithBridgeEvent).toBe(true);
+    spy.mockRestore();
   });
 });

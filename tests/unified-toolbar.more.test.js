@@ -51,8 +51,10 @@ describe('Unified Toolbar interactions (shortcuts, drag, tab ops)', () => {
 
   test('drag host updates persisted position', () => {
     const host = document.getElementById('excel-helper-toolbar');
+    const root = host.shadowRoot;
+    const dragBtn = Array.from(root.querySelectorAll('button'))[0];
     const r = host.getBoundingClientRect();
-    host.dispatchEvent(new MouseEvent('mousedown', { clientX: r.left + 5, clientY: r.top + 5, bubbles: true }));
+    dragBtn.dispatchEvent(new MouseEvent('mousedown', { clientX: r.left + 5, clientY: r.top + 5, bubbles: true }));
     document.dispatchEvent(new MouseEvent('mousemove', { clientX: r.left + 25, clientY: r.top + 35, bubbles: true }));
     document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
     expect(window.ExcelHelperNS.updateToolbarPosition).toHaveBeenCalled();
@@ -61,7 +63,7 @@ describe('Unified Toolbar interactions (shortcuts, drag, tab ops)', () => {
   test('tab prev/next and close send runtime messages', () => {
     const host = document.getElementById('excel-helper-toolbar');
     const root = host.shadowRoot;
-    const [btnPrev, btnNext, btnSearch, btnCopyId, btnClose] = root.querySelectorAll('button');
+    const [, btnPrev, btnNext, btnSearch, btnCopyId, btnClose] = root.querySelectorAll('button');
     btnPrev.click();
     btnNext.click();
     btnClose.click();

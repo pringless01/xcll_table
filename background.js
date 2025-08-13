@@ -1,4 +1,33 @@
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // XLSX köprü enjeksiyonu (CSP bypass): MAIN dünyasına script enjekte et
+  if (msg && msg.type === 'EH_INJECT_XLSX_BRIDGE') {
+    try {
+      const tabId = sender && sender.tab && sender.tab.id;
+      if (!tabId) {
+        sendResponse && sendResponse({ ok: false, err: 'No tabId' });
+        return; // no async
+      }
+      chrome.scripting.executeScript(
+        {
+          target: { tabId },
+          world: 'MAIN',
+          files: ['libs/xlsx.full.min.js', 'src/export/xlsx-bridge.js'],
+        },
+        () => {
+          if (chrome.runtime.lastError) {
+            sendResponse &&
+              sendResponse({ ok: false, err: chrome.runtime.lastError.message });
+          } else {
+            sendResponse && sendResponse({ ok: true });
+          }
+        }
+      );
+      return true; // async
+    } catch (e) {
+      sendResponse && sendResponse({ ok: false, err: String(e && e.message || e) });
+      return; // sync
+    }
+  }
   if (msg.type === 'open-links') {
     chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
       chrome.scripting.executeScript({

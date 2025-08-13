@@ -3,6 +3,7 @@
   "name": "Excel Table Selector",
   "version": "1.0",
   "description": "Tablolardan Excel'e veri seçici",
+  "default_locale": "tr",
   "permissions": [
     "storage",
     "scripting",
@@ -26,6 +27,7 @@
       "all_frames": true,
       "js": [
         "src/boot.js",
+        "src/core/i18n.js",
         "src/core/settings.js",
         "src/core/event-bus.js",
         "src/core/messaging.js",
@@ -55,7 +57,7 @@
     }
   ],
   "web_accessible_resources": [
-    { "resources": ["libs/xlsx.full.min.js"], "matches": [
+    { "resources": ["libs/xlsx.full.min.js", "src/export/xlsx-bridge.js"], "matches": [
       "http://*/*",
       "https://*/*"
     ] }

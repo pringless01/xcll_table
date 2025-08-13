@@ -23,6 +23,8 @@
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
     sheet:
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>',
+    grip:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="1"/><circle cx="15" cy="7" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17" r="1"/><circle cx="15" cy="17" r="1"/></svg>',
   };
 
   const CSS = `:host, .unified-toolbar {position:fixed;top:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:#0E0F13;border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:6px 10px;box-shadow:0 8px 24px rgba(0,0,0,.28);z-index:2147483647}
@@ -30,7 +32,10 @@
   .unified-toolbar button:hover{background:rgba(255,255,255,.08)}
   .unified-toolbar button[aria-pressed="true"]{box-shadow:inset 0 0 0 2px #2B6EFF}
   .unified-toolbar .btn-close svg{stroke:#E5484D}
-  .unified-toolbar svg{width:18px;height:18px}`;
+  .unified-toolbar svg{width:18px;height:18px}
+  .unified-toolbar .drag-handle{cursor:move}
+  .unified-toolbar .drag-handle[aria-pressed="true"]{box-shadow:none}
+  `;
 
   function ensureHost(settings) {
     let host = document.getElementById('excel-helper-toolbar');
@@ -86,16 +91,19 @@
     const wrap = document.createElement('div');
     wrap.className = 'unified-toolbar';
 
+  // Drag handle: sadece bu butondan sürükleme başlayacak
+  const btnDrag = makeButton({ icon: SVG.grip, label: (NS.t&&NS.t('drag_handle_label'))||'Sürükle', cls: 'drag-handle' });
+
     // Buttons
-    const btnPrev = makeButton({ icon: SVG.left, label: 'Önceki sekme' });
-    const btnNext = makeButton({ icon: SVG.right, label: 'Sonraki sekme' });
-    const btnSearch = makeButton({ icon: SVG.search, label: 'Ara (Son Kopyalanan)' });
-    const btnCopyId = makeButton({ icon: SVG.hash, label: 'ID kopyala' });
-    const btnClose = makeButton({ icon: SVG.close, label: 'Sekmeyi kapat', cls: 'btn-close' });
-    const btnSelect = makeButton({ icon: SVG.cursor, label: 'Seçim modu', pressed: !!settings.selectionMode });
-  const btnFilter = makeButton({ icon: SVG.filter, label: 'Filtre modu', pressed: !!settings.filterMode });
-    const btnCSV = makeButton({ icon: SVG.file, label: 'CSV dışa aktar' });
-    const btnXLSX = makeButton({ icon: SVG.sheet, label: 'Excel dışa aktar' });
+    const btnPrev = makeButton({ icon: SVG.left, label: (NS.t&&NS.t('prev_tab'))||'Önceki sekme' });
+    const btnNext = makeButton({ icon: SVG.right, label: (NS.t&&NS.t('next_tab'))||'Sonraki sekme' });
+    const btnSearch = makeButton({ icon: SVG.search, label: (NS.t&&NS.t('search_last_copied'))||'Ara (Son Kopyalanan)' });
+    const btnCopyId = makeButton({ icon: SVG.hash, label: (NS.t&&NS.t('copy_id'))||'ID kopyala' });
+    const btnClose = makeButton({ icon: SVG.close, label: (NS.t&&NS.t('close_tab'))||'Sekmeyi kapat', cls: 'btn-close' });
+    const btnSelect = makeButton({ icon: SVG.cursor, label: (NS.t&&NS.t('selection_mode'))||'Seçim modu', pressed: !!settings.selectionMode });
+  const btnFilter = makeButton({ icon: SVG.filter, label: (NS.t&&NS.t('filter_mode'))||'Filtre modu', pressed: !!settings.filterMode });
+    const btnCSV = makeButton({ icon: SVG.file, label: (NS.t&&NS.t('export_csv'))||'CSV dışa aktar' });
+    const btnXLSX = makeButton({ icon: SVG.sheet, label: (NS.t&&NS.t('export_excel'))||'Excel dışa aktar' });
 
     // Handlers
     btnPrev.addEventListener('click', () => {
@@ -114,14 +122,14 @@
           NS.reco.searchLastCopied();
         } else {
           const txt = (await navigator.clipboard.readText?.()) || '';
-          copyIdToast(txt ? `Aranacak: ${txt}` : 'Kopyalanan yok');
+          copyIdToast(txt ? ((NS.t&&NS.t('search_will',[txt]))||`Aranacak: ${txt}`) : ((NS.t&&NS.t('clipboard_empty'))||'Kopyalanan yok'));
         }
       } catch {}
     });
     btnCopyId.addEventListener('click', async () => {
       const id = tryGetCustomerId();
-      if (!id) { copyIdToast('ID bulunamadı'); return; }
-      try { await navigator.clipboard.writeText(id); copyIdToast('ID kopyalandı'); } catch { copyIdToast('ID kopyalanamadı'); }
+  if (!id) { copyIdToast((NS.t&&NS.t('id_not_found'))||'ID bulunamadı'); return; }
+  try { await navigator.clipboard.writeText(id); copyIdToast((NS.t&&NS.t('id_copied'))||'ID kopyalandı'); } catch { copyIdToast((NS.t&&NS.t('id_copy_failed'))||'ID kopyalanamadı'); }
     });
     btnSelect.addEventListener('click', () => {
       const nm = NS.toggleSelectionMode ? NS.toggleSelectionMode() : false;
@@ -136,13 +144,13 @@
       btnFilter.setAttribute('aria-pressed', String(!!nm));
     });
     btnCSV.addEventListener('click', () => {
-      try { NS.exportSelectionToCSV && NS.exportSelectionToCSV(); } catch (e) { console.error('CSV dışa aktarım hatası', e); }
+  try { NS.exportSelectionToCSV && NS.exportSelectionToCSV(); } catch (e) { console.error('CSV dışa aktarım hatası', e); }
     });
     btnXLSX.addEventListener('click', () => {
-      try { NS.exportSelectionToExcel && NS.exportSelectionToExcel(); } catch (e) { console.error('Excel dışa aktarım hatası', e); }
+  try { NS.exportSelectionToExcel && NS.exportSelectionToExcel(); } catch (e) { console.error('Excel dışa aktarım hatası', e); }
     });
 
-    wrap.append(btnPrev, btnNext, btnSearch, btnCopyId, btnClose, btnSelect, btnFilter, btnCSV, btnXLSX);
+  wrap.append(btnDrag, btnPrev, btnNext, btnSearch, btnCopyId, btnClose, btnSelect, btnFilter, btnCSV, btnXLSX);
     root.append(style, wrap);
 
     // Toolbar görünürlük/persist
@@ -158,17 +166,47 @@
       if (e.ctrlKey && e.shiftKey && k === 'e') { /* manifest komutuyla çakışabilir, sadece export yap */ e.preventDefault(); btnXLSX.click(); }
     }, true);
 
-    // Drag (host taşınır)
-    let dragging=false, sx=0, sy=0, ox=0, oy=0;
-    host.style.cursor = 'move';
-    host.addEventListener('mousedown', (e) => {
-      // Shadow içindeki buton tıklamaları drag olmasın
-      const path = e.composedPath && e.composedPath();
-      if (path && path.find((el) => el instanceof HTMLElement && el.tagName === 'BUTTON')) return;
+    // Drag (yalnızca sürükleme ikonuyla)
+    let dragging=false, sx=0, sy=0, ox=0, oy=0, lastSent=0;
+    const startDrag = (e) => {
       dragging = true; sx = e.clientX; sy = e.clientY; const r = host.getBoundingClientRect(); ox = r.left; oy = r.top;
-    });
-    document.addEventListener('mousemove', (e) => { if (!dragging) return; host.style.left = ox + (e.clientX-sx) + 'px'; host.style.top = oy + (e.clientY-sy) + 'px'; });
-    document.addEventListener('mouseup', () => { if (!dragging) return; dragging=false; const r = host.getBoundingClientRect(); try { NS.updateToolbarPosition && NS.updateToolbarPosition(r.left, r.top); } catch {} });
+      e.preventDefault();
+    };
+    const moveDrag = (e) => {
+      if (!dragging) return;
+      const nx = ox + (e.clientX - sx);
+      const ny = oy + (e.clientY - sy);
+      host.style.left = nx + 'px';
+      host.style.top = ny + 'px';
+      // Eşzamanlı sekme güncellemesi için throttled persist
+      const now = Date.now();
+      if (now - lastSent > 50) {
+        lastSent = now;
+        try { NS.updateToolbarPosition && NS.updateToolbarPosition(nx, ny); } catch {}
+      }
+    };
+    const endDrag = () => {
+      if (!dragging) return; dragging=false; const r = host.getBoundingClientRect();
+      try { NS.updateToolbarPosition && NS.updateToolbarPosition(r.left, r.top); } catch {}
+    };
+    // Shadow içine eklenen sürükleme butonundan drag başlat
+    btnDrag.addEventListener('mousedown', startDrag);
+    document.addEventListener('mousemove', moveDrag);
+    document.addEventListener('mouseup', endDrag);
+
+    // Sekmeler arası eşzamanlılık: storage değişimini dinle ve konumu uygula
+    try {
+      chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'local') return;
+        const ent = changes && changes.excelHelperSettings;
+        if (!ent) return;
+        const nv = ent.newValue || {};
+        const tp = nv.toolbarPosition;
+        if (!tp || dragging) return; // drag sırasında zıplama yapma
+        host.style.left = tp.x + 'px';
+        host.style.top = tp.y + 'px';
+      });
+    } catch {}
   }
 
   function initToolbar() {

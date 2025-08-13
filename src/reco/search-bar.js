@@ -28,14 +28,14 @@
     const bar = document.createElement('div');
     bar.className = 'hkyy-searchbar';
     bar.innerHTML = `<div class="hkyy-grip"></div>
-      <button id="hkyy-btn-tab-prev" title="Önceki sekme">◀</button>
-      <button id="hkyy-btn-tab-next" title="Sonraki sekme">▶</button>
+  <button id="hkyy-btn-tab-prev" title="${(rootNS.t&&rootNS.t('prev_tab'))||'Önceki sekme'}">◀</button>
+  <button id="hkyy-btn-tab-next" title="${(rootNS.t&&rootNS.t('next_tab'))||'Sonraki sekme'}">▶</button>
       <span class="hkyy-icon" aria-hidden="true"></span>
-      <span style="font-size:13px;">Ara</span>
-      <button id="hkyy-btn-search">Son Kopyalanan</button>
-      <button id="hkyy-btn-copyid" title="URL sonundaki ID'yi kopyala">ID Kopyala</button>
+  <span style="font-size:13px;">${(rootNS.t&&rootNS.t('search_last_copied'))||'Ara'}</span>
+  <button id="hkyy-btn-search">${(rootNS.t&&rootNS.t('search_last_copied'))||'Son Kopyalanan'}</button>
+  <button id="hkyy-btn-copyid" title="URL sonundaki ID'yi kopyala">${(rootNS.t&&rootNS.t('copy_id'))||'ID Kopyala'}</button>
       <button id="hkyy-btn-clear">Temizle</button>
-      <button id="hkyy-btn-close" title="Sekmeyi kapat">Sekmeyi Kapat</button>`;
+  <button id="hkyy-btn-close" title="${(rootNS.t&&rootNS.t('close_tab'))||'Sekmeyi kapat'}">Sekmeyi Kapat</button>`;
     state.els.root.appendChild(bar);
     state.els.searchBar = bar;
     // --- Merkez transform'unu sabit piksel konumuna çevir (drag kaymasını engelle) ---
@@ -81,12 +81,12 @@
         (res) => {
           if (res && res.ok) return;
           if (chrome.runtime.lastError)
-            showToast('Sekme değişmedi: ' + chrome.runtime.lastError.message);
-          else if (res && res.err) showToast('Sekme değişmedi: ' + res.err);
+      showToast(((rootNS.t&&rootNS.t('close_tab'))||'Sekme') + ' değişmedi: ' + chrome.runtime.lastError.message);
+          else if (res && res.err) showToast(((rootNS.t&&rootNS.t('close_tab'))||'Sekme') + ' değişmedi: ' + res.err);
         }
       );
     } catch {
-      showToast('Sekme değiştirilemedi (background yok)');
+  showToast('Sekme değiştirilemedi (background yok)');
     }
   }
   function enableTabScroll(bar) {
@@ -120,7 +120,7 @@
         }
       });
     } catch {
-      showToast('Sekme kapatılamadı (background yok)');
+  showToast('Sekme kapatılamadı (background yok)');
     }
   }
   function getPoint(e) {
@@ -228,16 +228,16 @@
     if (!btn) return;
     if (id) {
       btn.removeAttribute('disabled');
-      btn.title = `ID: ${id} — Kopyalamak için tıkla`;
+  btn.title = `ID: ${id} — Kopyalamak için tıkla`;
     } else {
       btn.setAttribute('disabled', 'true');
-      btn.title = 'Bu sayfada kopyalanacak ID bulunamadı';
+  btn.title = (rootNS.t&&rootNS.t('id_not_found'))||'Bu sayfada kopyalanacak ID bulunamadı';
     }
   }
   function copyCustomerIdFromUrl() {
     const id = getCustomerIdFromLocationHref();
     if (!id) {
-      showToast('ID bulunamadı');
+  showToast((rootNS.t&&rootNS.t('id_not_found'))||'ID bulunamadı');
       updateCopyIdButtonState();
       return;
     }
@@ -245,9 +245,9 @@
       .writeText(id)
       .then(() => {
         cacheLastCopied(id);
-        showToast(`ID kopyalandı: ${id}`);
+  showToast(((rootNS.t&&rootNS.t('id_copied'))||'ID kopyalandı') + `: ${id}`);
       })
-      .catch(() => showToast('ID kopyalanamadı'));
+  .catch(() => showToast((rootNS.t&&rootNS.t('id_copy_failed'))||'ID kopyalanamadı'));
   }
   async function searchLastCopied() {
     ensureSearchBar();
@@ -259,7 +259,7 @@
       } catch {}
     }
     if (!q) {
-      showToast('Kopyalanan yok');
+  showToast((rootNS.t&&rootNS.t('clipboard_empty'))||'Kopyalanan yok');
       return;
     }
     clearHighlights();

@@ -27,8 +27,11 @@ describe('Unified Toolbar (ikon-only, Shadow DOM)', () => {
     expect(host).toBeTruthy();
     const root = host.shadowRoot;
     expect(root).toBeTruthy();
-    const buttons = root.querySelectorAll('button');
-    expect(buttons.length).toBe(9);
+  const buttons = root.querySelectorAll('button');
+  expect(buttons.length).toBe(10);
+  // İlk buton sürükleme butonu olmalı
+  const first = buttons[0];
+  expect(first.getAttribute('aria-label')).toBe('Sürükle');
   });
 
   test('selection and filter toggles update aria-pressed', () => {
