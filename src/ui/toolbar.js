@@ -47,6 +47,7 @@
       host.style.position = 'fixed';
       host.style.left = settings.toolbarPosition.x + 'px';
       host.style.top = settings.toolbarPosition.y + 'px';
+  host.style.transform = 'none';
     }
     document.body.appendChild(host);
     return host;
@@ -191,26 +192,43 @@
 
     // Drag (yalnızca sürükleme ikonuyla)
     let dragging=false, sx=0, sy=0, ox=0, oy=0, lastSent=0;
+    function clampPosition(x, y) {
+      // Ölçüleri al
+      const r = host.getBoundingClientRect();
+      const margin = 8;
+      const maxX = (window.innerWidth || document.documentElement.clientWidth) - r.width - margin;
+      const maxY = (window.innerHeight || document.documentElement.clientHeight) - r.height - margin;
+      const nx = Math.min(Math.max(margin, x), Math.max(margin, maxX));
+      const ny = Math.min(Math.max(margin, y), Math.max(margin, maxY));
+      host.style.left = nx + 'px';
+      host.style.top = ny + 'px';
+      host.style.transform = 'none';
+      return { x: nx, y: ny };
+    }
+    function clampCurrentAndPersist() {
+      const r = host.getBoundingClientRect();
+      const { x, y } = clampPosition(r.left, r.top);
+      try { NS.updateToolbarPosition && NS.updateToolbarPosition(x, y); } catch {}
+    }
     const startDrag = (e) => {
       dragging = true; sx = e.clientX; sy = e.clientY; const r = host.getBoundingClientRect(); ox = r.left; oy = r.top;
       e.preventDefault();
+      host.style.transform = 'none';
     };
     const moveDrag = (e) => {
       if (!dragging) return;
       const nx = ox + (e.clientX - sx);
       const ny = oy + (e.clientY - sy);
-      host.style.left = nx + 'px';
-      host.style.top = ny + 'px';
+      const clamped = clampPosition(nx, ny);
       // Eşzamanlı sekme güncellemesi için throttled persist
       const now = Date.now();
       if (now - lastSent > 50) {
         lastSent = now;
-        try { NS.updateToolbarPosition && NS.updateToolbarPosition(nx, ny); } catch {}
+        try { NS.updateToolbarPosition && NS.updateToolbarPosition(clamped.x, clamped.y); } catch {}
       }
     };
     const endDrag = () => {
-      if (!dragging) return; dragging=false; const r = host.getBoundingClientRect();
-      try { NS.updateToolbarPosition && NS.updateToolbarPosition(r.left, r.top); } catch {}
+      if (!dragging) return; dragging=false; clampCurrentAndPersist();
     };
     // Shadow içine eklenen sürükleme butonundan drag başlat
     btnDrag.addEventListener('mousedown', startDrag);
@@ -226,10 +244,27 @@
         const nv = ent.newValue || {};
         const tp = nv.toolbarPosition;
         if (!tp || dragging) return; // drag sırasında zıplama yapma
-        host.style.left = tp.x + 'px';
-        host.style.top = tp.y + 'px';
+        clampPosition(tp.x, tp.y);
       });
     } catch {}
+
+    // Mount sonrası ilk clamp (persist edilmiş konum görünür alan dışındaysa içeri çek)
+    requestAnimationFrame(() => {
+      const r = host.getBoundingClientRect();
+      const margin = 8;
+      const vw = window.innerWidth || document.documentElement.clientWidth;
+      const vh = window.innerHeight || document.documentElement.clientHeight;
+      if (r.right < margin || r.left > vw - margin || r.bottom < margin || r.top > vh - margin) {
+        clampCurrentAndPersist();
+      }
+    });
+
+    // Resize ile ekran daralırsa içeri geri çek
+    let resizeRAF = 0;
+    window.addEventListener('resize', () => {
+      if (resizeRAF) return;
+      resizeRAF = requestAnimationFrame(() => { resizeRAF = 0; clampCurrentAndPersist(); });
+    });
   }
 
   function initToolbar() {
