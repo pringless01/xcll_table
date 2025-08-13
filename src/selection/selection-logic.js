@@ -72,6 +72,19 @@
     window.ExcelHelperNS.beginSelectionBatch();
     window.ExcelHelperNS.updateStatusPanel &&
       window.ExcelHelperNS.updateStatusPanel('lite');
+    // Tek tıklamada da başlangıç öğesini hemen seç (drag olmasa bile)
+    try {
+      if (selectionType === 'cell') {
+        window.ExcelHelperNS.addCell && window.ExcelHelperNS.addCell(cell);
+        prevRect = { minR: rowIndex, maxR: rowIndex, minC: colIndex, maxC: colIndex };
+      } else if (selectionType === 'row') {
+        addRowRange(rowIndex, rowIndex);
+        prevRect = { minR: rowIndex, maxR: rowIndex, minC: 0, maxC: cell.parentElement.cells.length - 1 };
+      } else if (selectionType === 'col') {
+        addColumnRange(colIndex, colIndex);
+        prevRect = { minR: 0, maxR: activeTable.rows.length - 1, minC: colIndex, maxC: colIndex };
+      }
+    } catch {}
   }
 
   function addRowRange(minR, maxR) {
