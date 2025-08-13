@@ -1,119 +1,163 @@
 <!-- popup.html -->
-<!DOCTYPE html>
+<!doctype html>
 <html lang="tr">
-<head>
-  <meta charset="UTF-8">
-  <title>Excel Helper - Control Panel</title>
-  <link rel="stylesheet" href="styles.css">
-  <style>
-    .diagnostic-panel {
-      margin-top: 15px;
-      padding: 10px;
-      background: #f8f9fa;
-      border-radius: 5px;
-      border-left: 4px solid #0078D4;
-    }
-    .status-item {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin: 5px 0;
-      padding: 3px 0;
-      font-size: 12px;
-    }
-    .status-ok { color: #28a745; }
-    .status-error { color: #dc3545; }
-    .status-warning { color: #ffc107; }
-    .diagnostic-buttons {
-      margin-top: 10px;
-    }
-    .diagnostic-buttons button {
-      margin-right: 5px;
-      padding: 5px 10px;
-      font-size: 11px;
-      border: 1px solid #ccc;
-      background: white;
-      border-radius: 3px;
-      cursor: pointer;
-    }
-    .diagnostic-buttons button:hover {
-      background: #f0f0f0;
-    }
-  </style>
-</head>
-<body>
-  <h2>Excel Helper Control Panel</h2>
-  
-  <!-- Ana Ayarlar -->
-  <form id="settingsForm">
-    <label><input type="checkbox" id="hesapBar"> Hesap Barı (Mini Hesap Makinesi)</label><br>
-    <label><input type="number" min="1" max="5" id="hesapBarMax" style="width:45px;"> Maksimum Bar (1-5)</label><br>
-    <label><input type="checkbox" id="hesapBarHistory"> Hesap Barı Geçmişi</label><br>
-    <label><input type="checkbox" id="toplamSatiri"> Tablo Altı Toplam Satırı</label><br>
-    <label><input type="checkbox" id="filtre"> Sütun/Satır Filtreleme</label><br>
-    <label><input type="checkbox" id="copyExcel"> Kopyalama / Panoya Aktar</label><br>
-    <label><input type="checkbox" id="excelExport"> Excel Dışa Aktar (.xlsx)</label><br>
-    <label><input type="checkbox" id="rowSelect"> Satır Toplu Seçim</label><br>
-    <label><input type="checkbox" id="colSelect"> Sütun Toplu Seçim</label><br>
-    <label><input type="checkbox" id="cellEdit"> Hücre Düzenleme</label><br>
-    <label><input type="checkbox" id="seciliToplam"> Seçili Toplam Göstergesi</label><br>
-    <label><input type="checkbox" id="toolbarVisible"> Toolbar Görünsün</label><br>
-    <label><input type="checkbox" id="toolbarFloat"> Toolbar Taşınabilir Olsun</label><br>
-    <label><input type="checkbox" id="shortcuts"> Kısayol Desteği</label><br>
-    <label>Tema:
-      <select id="theme">
-        <option value="light">Açık</option>
-        <option value="dark">Koyu</option>
-      </select>
-    </label><br>
-    <br>
-    <button type="button" id="saveBtn">Kaydet</button>
-    <button type="button" id="resetBtn">Varsayılan</button>
-  </form>
-  
-  <!-- Diagnostic Panel -->
-  <div class="diagnostic-panel">
-    <h3 style="margin: 0 0 10px 0; font-size: 14px;">🔧 System Diagnostics</h3>
-    
-    <div class="status-item">
-      <span>Extension Status:</span>
-      <span id="extension-status" class="status-ok">✅ Active</span>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Excel Helper - Control Panel</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .diagnostic-panel {
+        margin-top: 15px;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 5px;
+        border-left: 4px solid #0078d4;
+      }
+      .status-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 5px 0;
+        padding: 3px 0;
+        font-size: 12px;
+      }
+      .status-ok {
+        color: #28a745;
+      }
+      .status-error {
+        color: #dc3545;
+      }
+      .status-warning {
+        color: #ffc107;
+      }
+      .diagnostic-buttons {
+        margin-top: 10px;
+      }
+      .diagnostic-buttons button {
+        margin-right: 5px;
+        padding: 5px 10px;
+        font-size: 11px;
+        border: 1px solid #ccc;
+        background: white;
+        border-radius: 3px;
+        cursor: pointer;
+      }
+      .diagnostic-buttons button:hover {
+        background: #f0f0f0;
+      }
+    </style>
+  </head>
+  <body>
+    <h2>Excel Helper Control Panel</h2>
+
+    <!-- Ana Ayarlar -->
+    <form id="settingsForm">
+      <label
+        ><input type="checkbox" id="hesapBar" /> Hesap Barı (Mini Hesap
+        Makinesi)</label
+      ><br />
+      <label
+        ><input
+          type="number"
+          min="1"
+          max="5"
+          id="hesapBarMax"
+          style="width: 45px"
+        />
+        Maksimum Bar (1-5)</label
+      ><br />
+      <label
+        ><input type="checkbox" id="hesapBarHistory" /> Hesap Barı
+        Geçmişi</label
+      ><br />
+      <label
+        ><input type="checkbox" id="toplamSatiri" /> Tablo Altı Toplam
+        Satırı</label
+      ><br />
+      <label><input type="checkbox" id="filtre" /> Sütun/Satır Filtreleme</label
+      ><br />
+      <label
+        ><input type="checkbox" id="copyExcel" /> Kopyalama / Panoya
+        Aktar</label
+      ><br />
+      <label
+        ><input type="checkbox" id="excelExport" /> Excel Dışa Aktar
+        (.xlsx)</label
+      ><br />
+      <label><input type="checkbox" id="rowSelect" /> Satır Toplu Seçim</label
+      ><br />
+      <label><input type="checkbox" id="colSelect" /> Sütun Toplu Seçim</label
+      ><br />
+      <label><input type="checkbox" id="cellEdit" /> Hücre Düzenleme</label
+      ><br />
+      <label
+        ><input type="checkbox" id="seciliToplam" /> Seçili Toplam
+        Göstergesi</label
+      ><br />
+      <label
+        ><input type="checkbox" id="toolbarVisible" /> Toolbar Görünsün</label
+      ><br />
+      <label
+        ><input type="checkbox" id="toolbarFloat" /> Toolbar Taşınabilir
+        Olsun</label
+      ><br />
+      <label><input type="checkbox" id="shortcuts" /> Kısayol Desteği</label
+      ><br />
+      <label
+        >Tema:
+        <select id="theme">
+          <option value="light">Açık</option>
+          <option value="dark">Koyu</option>
+        </select> </label
+      ><br />
+      <br />
+      <button type="button" id="saveBtn">Kaydet</button>
+      <button type="button" id="resetBtn">Varsayılan</button>
+    </form>
+
+    <!-- Diagnostic Panel -->
+    <div class="diagnostic-panel">
+      <h3 style="margin: 0 0 10px 0; font-size: 14px">🔧 System Diagnostics</h3>
+
+      <div class="status-item">
+        <span>Extension Status:</span>
+        <span id="extension-status" class="status-ok">✅ Active</span>
+      </div>
+
+      <div class="status-item">
+        <span>Test Manager:</span>
+        <span id="test-manager-status" class="status-ok">⏳ Loading...</span>
+      </div>
+
+      <div class="status-item">
+        <span>Errors Found:</span>
+        <span id="error-count" class="status-ok">0</span>
+      </div>
+
+      <div class="status-item">
+        <span>Tests Passed:</span>
+        <span id="test-count" class="status-ok">0/0</span>
+      </div>
+
+      <div class="status-item">
+        <span>Last Backup:</span>
+        <span id="last-backup" class="status-warning">Never</span>
+      </div>
+
+      <div class="status-item">
+        <span>Performance:</span>
+        <span id="performance-status" class="status-ok">Good</span>
+      </div>
+
+      <div class="diagnostic-buttons">
+        <button id="runTestsBtn">Run Tests</button>
+        <button id="createBackupBtn">Backup</button>
+        <button id="viewErrorsBtn">View Errors</button>
+        <button id="exportDiagBtn">Export Log</button>
+      </div>
     </div>
-    
-    <div class="status-item">
-      <span>Test Manager:</span>
-      <span id="test-manager-status" class="status-ok">⏳ Loading...</span>
-    </div>
-    
-    <div class="status-item">
-      <span>Errors Found:</span>
-      <span id="error-count" class="status-ok">0</span>
-    </div>
-    
-    <div class="status-item">
-      <span>Tests Passed:</span>
-      <span id="test-count" class="status-ok">0/0</span>
-    </div>
-    
-    <div class="status-item">
-      <span>Last Backup:</span>
-      <span id="last-backup" class="status-warning">Never</span>
-    </div>
-    
-    <div class="status-item">
-      <span>Performance:</span>
-      <span id="performance-status" class="status-ok">Good</span>
-    </div>
-    
-    <div class="diagnostic-buttons">
-      <button id="runTestsBtn">Run Tests</button>
-      <button id="createBackupBtn">Backup</button>
-      <button id="viewErrorsBtn">View Errors</button>
-      <button id="exportDiagBtn">Export Log</button>
-    </div>
-  </div>
-  
-  <div id="settingsInfo" style="color:#098; margin-top:8px;"></div>
-  <script src="popup.js"></script>
-</body>
+
+    <div id="settingsInfo" style="color: #098; margin-top: 8px"></div>
+    <script src="popup.js"></script>
+  </body>
 </html>

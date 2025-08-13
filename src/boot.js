@@ -1,5 +1,5 @@
 // boot.js - İlk enjekte edilen script (diagnostic)
-(function(){
+(function () {
   try {
     const t0 = performance.now();
     console.log('[ExcelHelper][Boot] injecting...');

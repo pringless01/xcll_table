@@ -3,13 +3,20 @@
   "name": "Excel Table Selector",
   "version": "1.0",
   "description": "Tablolardan Excel'e veri seçici",
-  "permissions": ["storage", "scripting", "activeTab"],
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab",
+    "clipboardRead",
+    "clipboardWrite",
+    "tabs"
+  ],
   "host_permissions": ["<all_urls>"],
-  "background": {"service_worker": "background.js"},
-  "action": {"default_title": "Excel Selector"},
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Excel Selector" },
   "commands": {
     "toggle-toolbar": {
-      "suggested_key": {"default": "Ctrl+Shift+E"},
+      "suggested_key": { "default": "Ctrl+Shift+E" },
       "description": "Toolbar aç/kapat"
     }
   },
@@ -19,7 +26,6 @@
       "all_frames": true,
       "js": [
         "src/boot.js",
-        "libs/xlsx.full.min.js",
         "src/core/settings.js",
         "src/core/event-bus.js",
         "src/core/messaging.js",
@@ -35,12 +41,23 @@
         "src/ui/filters.js",
         "src/export/excel-exporter.js",
         "src/ui/toolbar.js",
-        "src/index.js"
+        "src/index.js",
+        "src/reco/style.js",
+        "src/reco/toast.js",
+        "src/reco/core.js",
+        "src/reco/copy-bubble.js",
+        "src/reco/paste-bubble.js",
+        "src/reco/search-bar.js",
+        "src/reco/apply-bind.js",
+        "src/reco/index.js"
       ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
-    {"resources": ["libs/xlsx.full.min.js"], "matches": ["<all_urls>"]}
+    { "resources": ["libs/xlsx.full.min.js"], "matches": [
+      "http://*/*",
+      "https://*/*"
+    ] }
   ]
 }

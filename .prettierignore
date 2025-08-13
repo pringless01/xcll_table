@@ -1,0 +1,8 @@
+node_modules
+package-lock.json
+libs/**
+icons/**
+Önerici/**
+*.min.js
+*.md
+.eslintrc.json
