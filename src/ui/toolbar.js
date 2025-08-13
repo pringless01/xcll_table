@@ -181,13 +181,20 @@
     );
 
     // Kısayollar
+    let lastCtrlF = 0;
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
-      if (e.ctrlKey && !e.shiftKey && k === 'f') { e.preventDefault(); btnSearch.click(); }
+      if (e.ctrlKey && !e.shiftKey && k === 'f') {
+        const now = Date.now();
+        if (now - lastCtrlF < 600) { e.preventDefault(); return; } // spam engelle
+        lastCtrlF = now;
+        e.preventDefault();
+        btnSearch.click();
+      }
       if (e.ctrlKey && e.shiftKey && k === 's') { e.preventDefault(); btnSelect.click(); }
       if (e.ctrlKey && e.shiftKey && k === 'f') { e.preventDefault(); btnFilter.click(); }
       if (e.ctrlKey && e.shiftKey && k === 'c') { e.preventDefault(); btnCSV.click(); }
-      if (e.ctrlKey && e.shiftKey && k === 'e') { /* manifest komutuyla çakışabilir, sadece export yap */ e.preventDefault(); btnXLSX.click(); }
+      if (e.ctrlKey && e.shiftKey && k === 'e') { e.preventDefault(); btnXLSX.click(); }
     }, true);
 
     // Drag (yalnızca sürükleme ikonuyla)

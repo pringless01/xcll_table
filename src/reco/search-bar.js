@@ -20,6 +20,10 @@
 
   let __boundHandlers = null;
   let __domObserver = null;
+  let __searchToken = 0; // concurrency token
+  let __lastSearchTs = 0;
+  const SEARCH_MIN_INTERVAL = 500; // ms: peş peşe spam engelle
+  const SEARCH_MAX_DURATION = 15000; // güvenlik için 15s sonra otomatik sonlandır
 
   function ensureSearchBar() {
     if (window.__EH_NO_SEARCHBAR_UI) return null;
@@ -250,6 +254,19 @@
   .catch(() => showToast((rootNS.t&&rootNS.t('id_copy_failed'))||'ID kopyalanamadı'));
   }
   async function searchLastCopied() {
+    const now = Date.now();
+    if (now - __lastSearchTs < SEARCH_MIN_INTERVAL) {
+      showToast('Arama çok sık tekrarlandı');
+      return;
+    }
+    __lastSearchTs = now;
+    // Yeni token üret ve önceki aramayı iptal et
+    const myToken = ++__searchToken;
+    if (R._searchInProgress) {
+      // Eski süreç requestIdleCallback/setTimeout döngülerinde token uyuşmazlığında kendiliğinden duracak
+      showToast('Önceki arama iptal ediliyor...');
+    }
+    R._searchInProgress = true;
     ensureSearchBar();
     let q = (state.lastCopied || '').trim();
     if (!q) {
@@ -260,6 +277,7 @@
     }
     if (!q) {
   showToast((rootNS.t&&rootNS.t('clipboard_empty'))||'Kopyalanan yok');
+      if (myToken === __searchToken) R._searchInProgress = false;
       return;
     }
     clearHighlights();
@@ -283,6 +301,10 @@
     let count = 0;
     const hits = [];
     function processChunk() {
+      if (myToken !== __searchToken) { // iptal edildi
+        R._searchInProgress = false;
+        return;
+      }
       let n = 0;
       while (n++ < 400 && count < state.MAX_HIGHLIGHTS) {
         const node = walker.nextNode();
@@ -310,15 +332,30 @@
         if (count >= state.MAX_HIGHLIGHTS) break;
       }
       if (count < state.MAX_HIGHLIGHTS && walker.nextNode()) {
-        if ('requestIdleCallback' in window)
+        if (myToken !== __searchToken) {
+          R._searchInProgress = false;
+          return;
+        }
+        if ('requestIdleCallback' in window) {
           requestIdleCallback(processChunk, { timeout: 100 });
-        else setTimeout(processChunk, 0);
+        } else setTimeout(processChunk, 0);
       } else {
-        showToast(count ? `Bulunan: ${count}` : 'Bulunamadı');
-        if (hits[0]) smoothCenter(hits[0]);
+        if (myToken === __searchToken) {
+          showToast(count ? `Bulunan: ${count}` : 'Bulunamadı');
+          if (hits[0]) smoothCenter(hits[0]);
+          R._searchInProgress = false;
+        }
       }
     }
     processChunk();
+    // Hard timeout koruması
+    setTimeout(() => {
+      if (myToken === __searchToken && R._searchInProgress) {
+        __searchToken++; // iptal
+        R._searchInProgress = false;
+        showToast('Arama süresi aşıldı (iptal)');
+      }
+    }, SEARCH_MAX_DURATION);
   }
   function bindGlobalHandlers() {
     if (__boundHandlers) return;
