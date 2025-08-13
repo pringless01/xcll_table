@@ -156,6 +156,29 @@
     // Toolbar görünürlük/persist
     host.style.display = settings.toolbarVisible ? 'block' : 'none';
 
+    // Toolbar üstünde scroll ile sekme değiştir (ivmeli)
+    let lastWheelTs = 0;
+    let wheelBurst = 0; // 0..3
+    wrap.addEventListener(
+      'wheel',
+      (e) => {
+        try {
+          e.preventDefault();
+          e.stopPropagation();
+          const now = performance.now();
+          const dt = now - lastWheelTs;
+          lastWheelTs = now;
+          wheelBurst = dt < 250 ? Math.min(3, wheelBurst + 1) : 0;
+          const accel = [1, 2, 4, 8][wheelBurst] || 1;
+          const axis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+          const direction = axis < 0 ? 'prev' : 'next';
+          const steps = accel;
+          try { chrome.runtime.sendMessage({ type: 'SWITCH_TAB', direction, steps }); } catch {}
+        } catch {}
+      },
+      { passive: false }
+    );
+
     // Kısayollar
     document.addEventListener('keydown', (e) => {
       const k = e.key.toLowerCase();
