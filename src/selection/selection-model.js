@@ -51,6 +51,14 @@
     state.version++;
     scheduleEmit();
   }
+  function removeCell(cell) {
+    if (!cell || !cell._ehSel) return;
+    cell.classList.remove(CLS, 'selected-cell', 'selected-row', 'selected-col');
+    cell._ehSel = false;
+    state.cells.delete(cell);
+    state.version++;
+    scheduleEmit();
+  }
   function addRow(rowEl) {
     if (!rowEl) return;
     let added = false;
@@ -142,6 +150,7 @@
   Object.assign(window.ExcelHelperNS, {
     clearSelection,
     addCell,
+  removeCell,
     addRow,
     addColumn,
     getSelectedCells,

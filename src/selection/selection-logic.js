@@ -72,19 +72,54 @@
     window.ExcelHelperNS.beginSelectionBatch();
     window.ExcelHelperNS.updateStatusPanel &&
       window.ExcelHelperNS.updateStatusPanel('lite');
-    // Tek tıklamada da başlangıç öğesini hemen seç (drag olmasa bile)
+    // Tek tıklamada seçim/toggle uygula
     try {
       if (selectionType === 'cell') {
-        window.ExcelHelperNS.addCell && window.ExcelHelperNS.addCell(cell);
-        prevRect = { minR: rowIndex, maxR: rowIndex, minC: colIndex, maxC: colIndex };
+        if (additive && cell._ehSel && window.ExcelHelperNS.removeCell) {
+          window.ExcelHelperNS.removeCell(cell);
+          // Toggle sonrası başka işlem yok
+        } else if (!cell._ehSel) {
+          window.ExcelHelperNS.addCell && window.ExcelHelperNS.addCell(cell);
+          prevRect = { minR: rowIndex, maxR: rowIndex, minC: colIndex, maxC: colIndex };
+        }
       } else if (selectionType === 'row') {
-        addRowRange(rowIndex, rowIndex);
-        prevRect = { minR: rowIndex, maxR: rowIndex, minC: 0, maxC: cell.parentElement.cells.length - 1 };
+        if (additive && rowFullySelected(activeTable.rows[rowIndex])) {
+          // Satır tamamen seçiliyse kaldır
+          const row = activeTable.rows[rowIndex];
+          for (const td of row.cells) window.ExcelHelperNS.removeCell && window.ExcelHelperNS.removeCell(td);
+        } else {
+          addRowRange(rowIndex, rowIndex);
+          prevRect = { minR: rowIndex, maxR: rowIndex, minC: 0, maxC: cell.parentElement.cells.length - 1 };
+        }
       } else if (selectionType === 'col') {
-        addColumnRange(colIndex, colIndex);
-        prevRect = { minR: 0, maxR: activeTable.rows.length - 1, minC: colIndex, maxC: colIndex };
+        if (additive && columnFullySelected(activeTable, colIndex)) {
+          for (let r = 0; r < activeTable.rows.length; r++) {
+            const rc = activeTable.rows[r];
+            if (!rc || rc.classList.contains('table-filter-row')) continue;
+            const td = rc.cells[colIndex];
+            if (td) window.ExcelHelperNS.removeCell && window.ExcelHelperNS.removeCell(td);
+          }
+        } else {
+          addColumnRange(colIndex, colIndex);
+          prevRect = { minR: 0, maxR: activeTable.rows.length - 1, minC: colIndex, maxC: colIndex };
+        }
       }
     } catch {}
+  }
+  function rowFullySelected(row){
+    if (!row) return false;
+    for (const td of row.cells){ if (!td._ehSel) return false; }
+    return row.cells.length>0;
+  }
+  function columnFullySelected(table, colIndex){
+    if (!table) return false;
+    for (let r=0;r<table.rows.length;r++){
+      const row=table.rows[r];
+      if (!row || row.classList.contains('table-filter-row')) continue;
+      const td=row.cells[colIndex];
+      if (td && !td._ehSel) return false;
+    }
+    return true;
   }
 
   function addRowRange(minR, maxR) {
