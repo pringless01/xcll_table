@@ -380,6 +380,42 @@
     document.addEventListener('mouseup', onMouseUp, true);
     document.addEventListener('selectstart', suppressNative, true);
     document.addEventListener('click', onDocumentClick, true);
+    document.addEventListener('keydown', onKeyCopy, true);
+  }
+  function onKeyCopy(e){
+    try {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.key !== 'c' && e.key !== 'C') return;
+      if (e.altKey || e.shiftKey) return; // sadece düz Ctrl+C
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return; // native kopyalama
+      const settings = window.ExcelHelperNS.getSettings ? window.ExcelHelperNS.getSettings() : { selectionMode:false };
+      if (!settings.selectionMode) return;
+      const cells = window.ExcelHelperNS.getSelectedCells ? window.ExcelHelperNS.getSelectedCells() : [];
+      if (!cells.length) return;
+      const aoa = window.ExcelHelperNS.getSelectionAOA ? window.ExcelHelperNS.getSelectionAOA() : [];
+      if (!aoa.length) return;
+      const tsvEscape = (s) => /["\t\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+      const txt = aoa.map(r=>r.map(c=>{
+        if (c==null) return '';
+        if (typeof c === 'object') { const v = 'v' in c ? c.v : c; return v instanceof Date ? new Date(v.getTime()-v.getTimezoneOffset()*60000).toISOString().replace('T',' ').replace('Z','') : String(v ?? ''); }
+        return String(c);
+      }).map(tsvEscape).join('\t')).join('\n');
+      e.preventDefault();
+      navigator.clipboard.writeText(txt).then(()=>{
+        try {
+          const T = window.ExcelHelperNS.reco && window.ExcelHelperNS.reco.showToast;
+          const t = window.ExcelHelperNS.t || (()=>null);
+          T && T(t('copied') || 'Kopyalandı');
+        } catch {}
+      }).catch(()=>{
+        try {
+          const T = window.ExcelHelperNS.reco && window.ExcelHelperNS.reco.showToast;
+          const t = window.ExcelHelperNS.t || (()=>null);
+          T && T(t('copy_denied') || 'Kopyalama reddedildi');
+        } catch {}
+      });
+    } catch {}
   }
   window.ExcelHelperNS = window.ExcelHelperNS || {};
   Object.assign(window.ExcelHelperNS, { attachSelectionHandlers });
