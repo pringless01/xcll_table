@@ -149,4 +149,38 @@
     beginSelectionBatch,
     endSelectionBatch,
   });
+  // Hafif getSelectionAOA fallback (excel-exporter yüklenmeden kopyalama için)
+  if (!window.ExcelHelperNS.getSelectionAOA) {
+    window.ExcelHelperNS.getSelectionAOA = function getSelectionAOAFallback() {
+      const cells = getSelectedCells();
+      if (!cells.length) return [];
+      // Satırlara göre grupla
+      const rowMap = new Map();
+      let minCol = Infinity, maxCol = -Infinity;
+      for (const c of cells) {
+        if (!c.isConnected) continue;
+        const r = c.parentElement && c.parentElement.rowIndex;
+        const col = c.cellIndex;
+        if (r == null || col == null) continue;
+        if (!rowMap.has(r)) rowMap.set(r, []);
+        rowMap.get(r).push(c);
+        if (col < minCol) minCol = col;
+        if (col > maxCol) maxCol = col;
+      }
+      if (minCol === Infinity) return [];
+      const rows = Array.from(rowMap.keys()).sort((a, b) => a - b);
+      const aoa = [];
+      for (const r of rows) {
+        const arr = new Array(maxCol - minCol + 1).fill('');
+        const list = rowMap.get(r);
+        list.sort((a, b) => a.cellIndex - b.cellIndex);
+        for (const c of list) {
+          const idx = c.cellIndex - minCol;
+            arr[idx] = (c.textContent || '').trim();
+        }
+        aoa.push(arr);
+      }
+      return aoa;
+    };
+  }
 })();
