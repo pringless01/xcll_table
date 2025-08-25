@@ -5,25 +5,21 @@
   if(R._auxApplySimple) return; R._auxApplySimple = true;
   const BTN = new Set([3,4]);
   let lastTs = 0;
-  function handlerFactory(block){
-    return function(e){
-      if(e.pointerType && e.pointerType!=='mouse') return;
-      if(!BTN.has(e.button)) return;
-      if(block){ e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); }
-      if(block){
-        const now=Date.now();
-        if(now - lastTs < 120) return; lastTs = now;
-        if(/https:\/\/backoffice\.betcoapps\.com\//i.test(location.href)){
-          try { R.triggerApply && R.triggerApply('mouse'+e.button); } catch {}
-          if(R.showToast) R.showToast('Apply (yan tuş)');
-        } else {
-          if(R.showToast) R.showToast('Yan tuş bloklandı');
-        }
-      }
-    };
+  function onAuxClick(e){
+    if(e.pointerType && e.pointerType!=='mouse') return;
+    if(!BTN.has(e.button)) return;
+    const y = window.scrollY, x = window.scrollX;
+    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    // Bazı sitelerde DOM odak değişip scroll tepeye gidebiliyor -> microtask'te restore
+    queueMicrotask(()=>{ if(window.scrollY!==y || window.scrollX!==x) window.scrollTo(x,y); });
+    const now=Date.now(); if(now - lastTs < 120) return; lastTs = now;
+    if(/https:\/\/backoffice\.betcoapps\.com\//i.test(location.href)){
+      try { R.triggerApply && R.triggerApply('mouse'+e.button); } catch {}
+      if(R.showToast) R.showToast('Apply (yan tuş)');
+    } else {
+      if(R.showToast) R.showToast('Yan tuş bloklandı');
+    }
   }
-  window.addEventListener('pointerdown', handlerFactory(false), true); // sadece erken tespit (iptal yok)
-  window.addEventListener('mousedown', handlerFactory(true), true); // asıl blok
-  window.addEventListener('auxclick', handlerFactory(true), true);  // güvence
-  // mouseup iptal edilmez; scroll sekmesi vs. etkilenmesin
+  // Yalnızca auxclick'i blokla; mousedown/pointerdown serbest kalsın ki layout / focus yan etkileri azalacak
+  window.addEventListener('auxclick', onAuxClick, true);
 })();
