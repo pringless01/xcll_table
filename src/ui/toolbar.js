@@ -117,13 +117,21 @@
       try { chrome.runtime.sendMessage({ type: 'CLOSE_ACTIVE_TAB' }); } catch {}
     });
     btnSearch.addEventListener('click', async () => {
-      // Reco search fonksiyonu varsa kullan, yoksa basit clipboard -> toast
       try {
+        // Önce geri uyum stub'ını tetikle (testler bunu izliyor)
         if (NS.reco && typeof NS.reco.searchLastCopied === 'function') {
-          NS.reco.searchLastCopied();
-        } else {
-          const txt = (await navigator.clipboard.readText?.()) || '';
-          copyIdToast(txt ? ((NS.t&&NS.t('search_will',[txt]))||`Aranacak: ${txt}`) : ((NS.t&&NS.t('clipboard_empty'))||'Kopyalanan yok'));
+          try { NS.reco.searchLastCopied(); } catch {}
+        }
+        const api = NS.reco && NS.reco.findAPI;
+        if (api) {
+          const bar = document.querySelector('.hkyy-findbar');
+          if (!bar || bar.style.display==='none') {
+            let preset='';
+            try { const sel=String(getSelection()); if(sel.trim()) preset=sel.trim(); else if (NS.state && NS.state.lastCopied) preset=NS.state.lastCopied.trim(); else { const clip=await navigator.clipboard.readText(); if(clip && clip.trim()) preset=clip.trim(); } } catch{}
+            api.open(preset);
+          } else {
+            api.next();
+          }
         }
       } catch {}
     });

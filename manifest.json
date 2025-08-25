@@ -19,6 +19,14 @@
     "toggle-toolbar": {
       "suggested_key": { "default": "Ctrl+Shift+E" },
       "description": "Toolbar aç/kapat"
+    },
+    "mouse-back-block": {
+      "suggested_key": { "default": "Alt+Left" },
+      "description": "(Intercept) Mouse Back Tuşu"
+    },
+    "mouse-forward-block": {
+      "suggested_key": { "default": "Alt+Right" },
+      "description": "(Intercept) Mouse Forward Tuşu"
     }
   },
   "content_scripts": [

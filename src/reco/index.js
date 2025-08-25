@@ -34,6 +34,11 @@
     } catch (e) {
       console.warn('applyBind init fail', e);
     }
+    try {
+      NS.reco.initAuxApply && NS.reco.initAuxApply();
+    } catch (e) {
+      console.warn('auxApply init fail', e);
+    }
   };
   // Auto-init minimal essentials
   if (document.readyState === 'loading')

@@ -6,32 +6,12 @@
   if (R._applyBindEnhanced) return;
   R._applyBindEnhanced = true;
   const { showToast } = R;
-  const AUX_BUTTONS = new Set([3, 4]); // mouse 4 / 5
+  // Bu dosya artık sadece temel apply tetikleme mantığını içerir.
   function init() {
-    if (!/https:\/\/backoffice\.betcoapps\.com\//i.test(location.href)) return; // domain filtre
-    window.addEventListener('pointerdown', onAuxTrigger, true);
-    window.addEventListener('mousedown', onAuxTrigger, true);
-    window.addEventListener('auxclick', onAuxTrigger, true);
-    window.addEventListener(
-      'keydown',
-      (e) => {
-        if (e.altKey && e.shiftKey && e.code === 'KeyA') {
-          e.preventDefault();
-          fireApply('Alt+Shift+A');
-        }
-      },
-      true
-    );
-  }
-  function onAuxTrigger(e) {
-    if (e.pointerType && e.pointerType !== 'mouse') return;
-    if (!AUX_BUTTONS.has(e.button)) return;
-    const path = e.composedPath ? e.composedPath() : [];
-    if (path.some((el) => el instanceof Element && el.id === 'hkyy-root'))
-      return;
-    e.preventDefault();
-    e.stopPropagation();
-    fireApply('Mouse button ' + e.button);
+    if (!/https:\/\/backoffice\.betcoapps\.com\//i.test(location.href)) return;
+    window.addEventListener('keydown', (e)=>{
+      if (e.altKey && e.shiftKey && e.code==='KeyA') { e.preventDefault(); fireApply('Alt+Shift+A'); }
+    }, true);
   }
   function fireApply(source) {
     const btn = findApplyButton();
@@ -116,5 +96,7 @@
       }, 400);
     } catch {}
   }
+  R.triggerApply = fireApply; // dış modüller için
+  R.initApplyBind = init; // orijinal isim korunur
   init();
 })();

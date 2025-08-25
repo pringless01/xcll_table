@@ -1,399 +1,273 @@
-// reco/search-bar.js - gelişmiş arama & sekme kontrol barı (HKYY port)
-(function () {
+// chrome benzeri bul çubuğu (Ctrl+F)
+(function(){
   const rootNS = (window.ExcelHelperNS = window.ExcelHelperNS || {});
   rootNS.reco = rootNS.reco || {};
   const R = rootNS.reco;
-  if (R._searchBarEnhanced) return;
-  R._searchBarEnhanced = true;
-  const {
-    state,
-    ensureRoot,
-    showToast,
-    escapeRegExp,
-    clearHighlights,
-    smoothCenter,
-    cacheLastCopied,
-    saveToolbarPos,
-    applyToolbarPos,
-    loadInitialState,
-  } = R;
+  if (R._findBarReady) return; R._findBarReady = true;
+  const { state } = R;
 
-  let __boundHandlers = null;
-  let __domObserver = null;
-  let __searchToken = 0; // concurrency token
-  let __lastSearchTs = 0;
-  const SEARCH_MIN_INTERVAL = 500; // ms: peş peşe spam engelle
-  const SEARCH_MAX_DURATION = 15000; // güvenlik için 15s sonra otomatik sonlandır
+  // Dahili durum
+  const findState = {
+    container: null,
+    input: null,
+    countLabel: null,
+    btnPrev: null,
+    btnNext: null,
+    btnClose: null,
+    matches: [], // {span, order, index}
+    activeIndex: -1,
+    cache: null, // {nodes:[Text], builtAt}
+    building: false,
+    lastQuery: '',
+    scanToken: null,
+    observer: null,
+  postPasteAdvance: false,
+  };
+  const MAX_MATCHES = 2000; // yeterli limit
 
-  function ensureSearchBar() {
-    if (window.__EH_NO_SEARCHBAR_UI) return null;
-  ensureRoot();
-    if (state.els.searchBar) return state.els.searchBar;
-    const bar = document.createElement('div');
-    bar.className = 'hkyy-searchbar';
-    bar.innerHTML = `<div class="hkyy-grip"></div>
-  <button id="hkyy-btn-tab-prev" title="${(rootNS.t&&rootNS.t('prev_tab'))||'Önceki sekme'}">◀</button>
-  <button id="hkyy-btn-tab-next" title="${(rootNS.t&&rootNS.t('next_tab'))||'Sonraki sekme'}">▶</button>
-      <span class="hkyy-icon" aria-hidden="true"></span>
-  <span style="font-size:13px;">${(rootNS.t&&rootNS.t('search_last_copied'))||'Ara'}</span>
-  <button id="hkyy-btn-search">${(rootNS.t&&rootNS.t('search_last_copied'))||'Son Kopyalanan'}</button>
-  <button id="hkyy-btn-copyid" title="URL sonundaki ID'yi kopyala">${(rootNS.t&&rootNS.t('copy_id'))||'ID Kopyala'}</button>
-      <button id="hkyy-btn-clear">Temizle</button>
-  <button id="hkyy-btn-close" title="${(rootNS.t&&rootNS.t('close_tab'))||'Sekmeyi kapat'}">Sekmeyi Kapat</button>`;
-    state.els.root.appendChild(bar);
-    state.els.searchBar = bar;
-    // --- Merkez transform'unu sabit piksel konumuna çevir (drag kaymasını engelle) ---
-    requestAnimationFrame(() => {
-      const cs = getComputedStyle(bar);
-      if (
-        cs.transform &&
-        (cs.transform.includes('matrix') || cs.transform.includes('translateX'))
-      ) {
-        const r = bar.getBoundingClientRect();
-        bar.style.left = r.left + 'px';
-        bar.style.top = r.top + 'px';
-        bar.style.transform = 'none'; // kalıcı kaldır
-      }
+  function buildUI(){
+    if (findState.container) return;
+    const host = document.createElement('div');
+    host.className = 'hkyy-findbar';
+  host.style.cssText = 'position:fixed;top:8px;right:16px;z-index:2147483647;display:flex;gap:8px;align-items:center;background:var(--hkyy-bg,rgba(32,32,40,.92));color:var(--hkyy-fg,#fff);padding:10px 12px;border:1px solid var(--hkyy-border,#444);border-radius:8px;font:13px/1.35 system-ui,Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.40);backdrop-filter:blur(6px)';
+    const input = document.createElement('input');
+    input.type='text';
+    input.placeholder='Ara';
+  input.style.cssText='width:260px;background:#1118;border:1px solid #555;color:#fff;padding:6px 8px;border-radius:6px;outline:none;font:13px system-ui';
+    const count = document.createElement('span');
+    count.textContent='0/0';
+  count.style.cssText='min-width:70px;text-align:center;font:12px system-ui;color:#ccc;';
+    const btnPrev = document.createElement('button');
+    const btnNext = document.createElement('button');
+    const btnClose = document.createElement('button');
+  [btnPrev,btnNext,btnClose].forEach(b=>{b.type='button';b.style.cssText='background:#222a;border:1px solid #555;color:#ddd;padding:6px 8px;border-radius:6px;cursor:pointer;font:12px system-ui;line-height:1';b.onmouseenter=()=>b.style.background='#333c';b.onmouseleave=()=>b.style.background='#222a';});
+    btnPrev.textContent='‹'; btnNext.textContent='›'; btnClose.textContent='✕';
+    btnPrev.title='Önceki (Shift+Enter)';
+    btnNext.title='Sonraki (Enter)';
+    btnClose.title='Kapat (Esc)';
+    host.append(input,count,btnPrev,btnNext,btnClose);
+    document.documentElement.appendChild(host);
+    findState.container=host; findState.input=input; findState.countLabel=count; findState.btnPrev=btnPrev; findState.btnNext=btnNext; findState.btnClose=btnClose;
+    btnClose.addEventListener('click', closeFindBar);
+    btnNext.addEventListener('click', ()=> jumpRelative(+1));
+    btnPrev.addEventListener('click', ()=> jumpRelative(-1));
+  input.addEventListener('input', ()=> { input.dataset.userEdited='1'; scheduleSearch(); });
+  input.addEventListener('paste', ()=> { input.dataset.userEdited='1'; findState.postPasteAdvance=true; setTimeout(searchNow,0); });
+    input.addEventListener('keydown', (e)=>{
+      if (e.key==='Enter'){ e.preventDefault(); jumpRelative(e.shiftKey?-1:+1);} else if (e.key==='Escape'){ e.preventDefault(); closeFindBar(); }
     });
-    state.els.btn.search = bar.querySelector('#hkyy-btn-search');
-    state.els.btn.clear = bar.querySelector('#hkyy-btn-clear');
-    state.els.btn.copyId = bar.querySelector('#hkyy-btn-copyid');
-    state.els.btn.close = bar.querySelector('#hkyy-btn-close');
-    state.els.btn.tabPrev = bar.querySelector('#hkyy-btn-tab-prev');
-    state.els.btn.tabNext = bar.querySelector('#hkyy-btn-tab-next');
+  }
 
-    state.els.btn.search.addEventListener('click', searchLastCopied);
-    state.els.btn.clear.addEventListener('click', clearHighlights);
-    state.els.btn.copyId.addEventListener('click', copyCustomerIdFromUrl);
-    state.els.btn.close.addEventListener('click', closeActiveTab);
-    state.els.btn.tabPrev.addEventListener('click', () => switchTab('prev', 1));
-    state.els.btn.tabNext.addEventListener('click', () => switchTab('next', 1));
-
-    enableTabScroll(bar);
-    enableDrag(bar);
-
-    loadInitialState().then(() => {
-      if (state.toolbarPos) applyToolbarPos(state.toolbarPos);
-    });
-    updateCopyIdButtonState();
-  return bar;
-  }
-  function switchTab(direction, steps = 1) {
-    try {
-      chrome.runtime.sendMessage(
-        { type: 'SWITCH_TAB', direction, steps },
-        (res) => {
-          if (res && res.ok) return;
-          if (chrome.runtime.lastError)
-      showToast(((rootNS.t&&rootNS.t('close_tab'))||'Sekme') + ' değişmedi: ' + chrome.runtime.lastError.message);
-          else if (res && res.err) showToast(((rootNS.t&&rootNS.t('close_tab'))||'Sekme') + ' değişmedi: ' + res.err);
-        }
-      );
-    } catch {
-  showToast('Sekme değiştirilemedi (background yok)');
-    }
-  }
-  function enableTabScroll(bar) {
-    let lastTime = 0,
-      burst = 0;
-    bar.addEventListener(
-      'wheel',
-      (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const now = performance.now();
-        const dt = now - lastTime;
-        lastTime = now;
-        if (dt < 250) burst = Math.min(3, burst + 1);
-        else burst = 0;
-        const accel = [1, 2, 4, 8][burst] || 1;
-        const steps = accel;
-        const direction = e.deltaY < 0 ? 'prev' : 'next';
-        switchTab(direction, steps);
-      },
-      { passive: false }
-    );
-  }
-  function closeActiveTab() {
-    try {
-      chrome.runtime.sendMessage({ type: 'CLOSE_ACTIVE_TAB' }, (res) => {
-        if (!res?.ok) {
-          if (chrome.runtime.lastError)
-            showToast('Kapatılamadı: ' + chrome.runtime.lastError.message);
-          else if (res?.err) showToast('Kapatılamadı: ' + res.err);
-        }
-      });
-    } catch {
-  showToast('Sekme kapatılamadı (background yok)');
-    }
-  }
-  function getPoint(e) {
-    if (!e) return null;
-    if (typeof e.clientX === 'number') return { x: e.clientX, y: e.clientY };
-    if (e.touches && e.touches[0])
-      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    if (e.changedTouches && e.changedTouches[0])
-      return { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
-    return null;
-  }
-  function enableDrag(el) {
-    let dragging = false,
-      startX = 0,
-      startY = 0,
-      startLeft = 0,
-      startTop = 0,
-      framePending = false,
-      targetLeft = 0,
-      targetTop = 0;
-    // Tek seferlik normalize
-    (function initNormalize() {
-      const cs = getComputedStyle(el);
-      if (cs.transform && cs.transform !== 'none') {
-        const r = el.getBoundingClientRect();
-        el.style.left = r.left + 'px';
-        el.style.top = r.top + 'px';
-        el.style.transform = 'none';
-      }
-    })();
-    el.style.willChange = 'left, top';
-    function onDown(e) {
-      if (e.target && e.target.tagName === 'BUTTON') return;
-      if (e.type === 'mousedown' && e.button !== 0) return;
-      const p = getPoint(e);
-      if (!p) return;
-      dragging = true;
-      startX = p.x;
-      startY = p.y;
-      // Mevcut inline yoksa rect'ten al
-      startLeft = parseFloat(el.style.left) || el.getBoundingClientRect().left;
-      startTop = parseFloat(el.style.top) || el.getBoundingClientRect().top;
-      targetLeft = startLeft;
-      targetTop = startTop;
-      el.classList.add('hkyy-dragging');
-      e.preventDefault();
-    }
-    function apply() {
-      framePending = false;
-      el.style.left = Math.max(0, Math.round(targetLeft)) + 'px';
-      el.style.top = Math.max(0, Math.round(targetTop)) + 'px';
-    }
-    const onMove = (e) => {
-      if (!dragging) return;
-      const p = getPoint(e);
-      if (!p) return;
-      targetLeft = startLeft + (p.x - startX);
-      targetTop = startTop + (p.y - startY);
-      if (!framePending) {
-        framePending = true;
-        requestAnimationFrame(apply);
-      }
-    };
-    function onUp() {
-      if (!dragging) return;
-      dragging = false;
-      el.classList.remove('hkyy-dragging'); // Stil uzerindeki mevcut degerleri kaydet
-      const savedLeft = parseFloat(el.style.left) || 0;
-      const savedTop = parseFloat(el.style.top) || 0;
-      saveToolbarPos({
-        top: Math.max(0, Math.round(savedTop)),
-        left: Math.max(0, Math.round(savedLeft)),
-      });
-    }
-    if (window.PointerEvent) {
-      el.addEventListener('pointerdown', onDown, { passive: false });
-      window.addEventListener('pointermove', onMove, true);
-      window.addEventListener('pointerup', onUp, true);
-      window.addEventListener('pointercancel', onUp, true);
-    } else {
-      el.addEventListener('mousedown', onDown, { passive: false });
-      window.addEventListener('mousemove', onMove, true);
-      window.addEventListener('mouseup', onUp, true);
-      el.addEventListener('touchstart', onDown, { passive: false });
-      window.addEventListener('touchmove', onMove, { passive: false });
-      window.addEventListener('touchend', onUp, true);
-      window.addEventListener('touchcancel', onUp, true);
-    }
-  }
-  function getCustomerIdFromLocationHref() {
-    try {
-      const href = location.href;
-      const hostOk = /:\/\/backoffice\.betcoapps\.com\//i.test(href);
-      if (!hostOk) return null;
-      const m = href.match(/#\/customers\/detail\/(\d{5,15})$/);
-      return m ? m[1] : null;
-    } catch {
-      return null;
-    }
-  }
-  function updateCopyIdButtonState() {
-    ensureSearchBar();
-    const id = getCustomerIdFromLocationHref();
-    const btn = state.els.btn.copyId;
-    if (!btn) return;
-    if (id) {
-      btn.removeAttribute('disabled');
-  btn.title = `ID: ${id} — Kopyalamak için tıkla`;
-    } else {
-      btn.setAttribute('disabled', 'true');
-  btn.title = (rootNS.t&&rootNS.t('id_not_found'))||'Bu sayfada kopyalanacak ID bulunamadı';
-    }
-  }
-  function copyCustomerIdFromUrl() {
-    const id = getCustomerIdFromLocationHref();
-    if (!id) {
-  showToast((rootNS.t&&rootNS.t('id_not_found'))||'ID bulunamadı');
-      updateCopyIdButtonState();
-      return;
-    }
-    navigator.clipboard
-      .writeText(id)
-      .then(() => {
-        cacheLastCopied(id);
-  showToast(((rootNS.t&&rootNS.t('id_copied'))||'ID kopyalandı') + `: ${id}`);
-      })
-  .catch(() => showToast((rootNS.t&&rootNS.t('id_copy_failed'))||'ID kopyalanamadı'));
-  }
-  async function searchLastCopied() {
-    const now = Date.now();
-    if (now - __lastSearchTs < SEARCH_MIN_INTERVAL) {
-      showToast('Arama çok sık tekrarlandı');
-      return;
-    }
-    __lastSearchTs = now;
-    // Yeni token üret ve önceki aramayı iptal et
-    const myToken = ++__searchToken;
-    if (R._searchInProgress) {
-      // Eski süreç requestIdleCallback/setTimeout döngülerinde token uyuşmazlığında kendiliğinden duracak
-      showToast('Önceki arama iptal ediliyor...');
-    }
-    R._searchInProgress = true;
-    ensureSearchBar();
-    let q = (state.lastCopied || '').trim();
-    if (!q) {
+  function openFindBar(preset){
+    buildUI();
+    findState.container.style.display='flex';
+    const inp=findState.input;
+    if (preset){ inp.value=preset; }
+    inp.dataset.userEdited='0';
+    // Async clipboard read (overwrite only if user not edited yet)
+    (async()=>{
       try {
-        const txt = await navigator.clipboard.readText();
-        if (txt && txt.trim()) q = txt.trim();
+        const clip = await navigator.clipboard.readText();
+        if (inp.dataset.userEdited==='0' && clip && clip.trim() && (!inp.value || inp.value.trim()===preset)) {
+          inp.value = clip.trim();
+        }
       } catch {}
-    }
-    if (!q) {
-  showToast((rootNS.t&&rootNS.t('clipboard_empty'))||'Kopyalanan yok');
-      if (myToken === __searchToken) R._searchInProgress = false;
-      return;
-    }
-    clearHighlights();
-    const walker = document.createTreeWalker(
-      document.body,
-      NodeFilter.SHOW_TEXT,
-      {
-        acceptNode(node) {
-          const pe = node.parentElement;
-          if (!node.nodeValue || !node.nodeValue.trim())
-            return NodeFilter.FILTER_REJECT;
-          if (!pe || pe.closest('#hkyy-root')) return NodeFilter.FILTER_REJECT;
-          const st = getComputedStyle(pe);
-          if (st && (st.display === 'none' || st.visibility === 'hidden'))
-            return NodeFilter.FILTER_REJECT;
-          return NodeFilter.FILTER_ACCEPT;
-        },
-      }
-    );
-    const regex = new RegExp(escapeRegExp(q), 'gi');
-    let count = 0;
-    const hits = [];
-    function processChunk() {
-      if (myToken !== __searchToken) { // iptal edildi
-        R._searchInProgress = false;
-        return;
-      }
-      let n = 0;
-      while (n++ < 400 && count < state.MAX_HIGHLIGHTS) {
-        const node = walker.nextNode();
-        if (!node) break;
-        const txt = node.nodeValue;
-        if (!regex.test(txt)) continue;
-        const frag = document.createDocumentFragment();
-        let lastIdx = 0;
-        txt.replace(regex, (m, idx) => {
-          if (idx > lastIdx)
-            frag.appendChild(document.createTextNode(txt.slice(lastIdx, idx)));
-          const span = document.createElement('span');
-          span.className = 'hkyy-highlight';
-          span.textContent = m;
-          frag.appendChild(span);
-          state.highlights.push(span);
-          hits.push(span);
-          count++;
-          lastIdx = idx + m.length;
-          return m;
-        });
-        if (lastIdx < txt.length)
-          frag.appendChild(document.createTextNode(txt.slice(lastIdx)));
-        node.parentNode.replaceChild(frag, node);
-        if (count >= state.MAX_HIGHLIGHTS) break;
-      }
-      if (count < state.MAX_HIGHLIGHTS && walker.nextNode()) {
-        if (myToken !== __searchToken) {
-          R._searchInProgress = false;
-          return;
-        }
-        if ('requestIdleCallback' in window) {
-          requestIdleCallback(processChunk, { timeout: 100 });
-        } else setTimeout(processChunk, 0);
-      } else {
-        if (myToken === __searchToken) {
-          showToast(count ? `Bulunan: ${count}` : 'Bulunamadı');
-          if (hits[0]) smoothCenter(hits[0]);
-          R._searchInProgress = false;
-        }
-      }
-    }
-    processChunk();
-    // Hard timeout koruması
-    setTimeout(() => {
-      if (myToken === __searchToken && R._searchInProgress) {
-        __searchToken++; // iptal
-        R._searchInProgress = false;
-        showToast('Arama süresi aşıldı (iptal)');
-      }
-    }, SEARCH_MAX_DURATION);
+      if (inp.dataset.userEdited==='0') searchNow();
+    })();
+    queueMicrotask(()=>{ inp.focus(); inp.select(); searchNow(); });
   }
-  function bindGlobalHandlers() {
-    if (__boundHandlers) return;
-    const onHash = () => updateCopyIdButtonState();
-    const onPop = () => updateCopyIdButtonState();
-    window.addEventListener('hashchange', onHash);
-    window.addEventListener('popstate', onPop);
-    __domObserver = new MutationObserver(() => updateCopyIdButtonState());
-    __domObserver.observe(document.documentElement, {
-      childList: true,
-      subtree: true,
-    });
-    __boundHandlers = { onHash, onPop };
+  function closeFindBar(){
+    if (!findState.container) return;
+    findState.container.style.display='none';
+    clearMatches();
   }
 
-  function cleanup() {
+  function ensureObserver(){
+    if(findState.observer) return;
     try {
-      if (__boundHandlers) {
-        window.removeEventListener('hashchange', __boundHandlers.onHash);
-        window.removeEventListener('popstate', __boundHandlers.onPop);
-        __boundHandlers = null;
-      }
-      if (__domObserver) {
-        __domObserver.disconnect();
-        __domObserver = null;
-      }
+      findState.observer = new MutationObserver(()=>{ findState.cache = null; });
+      findState.observer.observe(document.body, {subtree:true, childList:true, characterData:true});
     } catch {}
   }
+  function collectTextNodes(){
+    ensureObserver();
+    if(findState.cache && Date.now() - findState.cache.builtAt < 60000){ return findState.cache.nodes; }
+    const nodes=[]; const walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,{acceptNode(n){
+      const pe=n.parentElement; if(!pe||pe.closest('#hkyy-root')||pe.closest('.hkyy-findbar')||!n.nodeValue||!n.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
+      const st=getComputedStyle(pe); if(st && (st.display==='none'||st.visibility==='hidden')) return NodeFilter.FILTER_REJECT; if(n.nodeValue.length>200000) return NodeFilter.FILTER_REJECT; return NodeFilter.FILTER_ACCEPT;}});
+    let t; while((t=walker.nextNode())) nodes.push(t);
+    findState.cache = {nodes, builtAt: Date.now()};
+    return nodes;
+  }
 
-  // Export API
-  R.searchLastCopied = searchLastCopied;
-  R.initSearchBar = function initSearchBar() {
-    // UI devre dışı ise sadece handlerları bağla
-    if (!window.__EH_NO_SEARCHBAR_UI) ensureSearchBar();
-    bindGlobalHandlers();
-    window.addEventListener('pagehide', cleanup, { once: true });
-  };
+  function clearMatches(){
+    // remove span wrappers
+    if (findState.matches.length){
+      for(const m of findState.matches){ const span=m.span; if(!span.isConnected) continue; const parent=span.parentNode; if(!parent) continue; parent.replaceChild(document.createTextNode(span.textContent), span); parent.normalize && parent.normalize(); }
+    }
+    findState.matches=[]; findState.activeIndex=-1; updateCount();
+  }
+  function updateCount(){
+    if (!findState.countLabel) return; const total=findState.matches.length; const cur = total? (findState.activeIndex+1):0; findState.countLabel.textContent=`${cur}/${total}`;
+  }
+  let searchTimer=null;
+  function scheduleSearch(){ if (searchTimer) clearTimeout(searchTimer); searchTimer=setTimeout(searchNow,150); }
 
-  // init
-  R.initSearchBar();
+  function searchNow(){
+    const q = findState.input.value.trim();
+    if(q === findState.lastQuery && findState.matches.length){ // aynı sorgu
+      // Eğer paste sonrası otomatik ilerleme isteniyorsa uygula
+      if(findState.postPasteAdvance){
+        findState.postPasteAdvance=false;
+        if(findState.matches.length>1){
+          jumpRelative(+1);
+        } else {
+          // tek eşleşme - sadece aktifliği yenile
+          activateCurrent(); updateCount();
+        }
+      } else {
+        updateCount();
+      }
+      return;
+    }
+    // yeni sorgu -> eskileri temizle
+    clearMatches();
+    findState.lastQuery = q;
+    if(!q){ return; }
+    const qLower = q.toLowerCase();
+    const nodes = collectTextNodes();
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'gi');
+    let orderCounter = 0;
+    let idx = 0;
+    const startTs = performance.now();
+    const token = Symbol('scan');
+    findState.scanToken = token;
+    function processSlice(deadline){
+      if(token !== findState.scanToken) return; // iptal
+      const budgeted = deadline && typeof deadline.timeRemaining === 'function';
+      while(idx < nodes.length && findState.matches.length < MAX_MATCHES){
+        if(budgeted && deadline.timeRemaining() <= 0) break;
+        const node = nodes[idx++];
+        if(!node || !node.nodeValue) continue;
+        regex.lastIndex = 0; // her node başa
+        const text = node.nodeValue;
+        if(!text.toLowerCase().includes(qLower)) continue;
+        const intervals=[]; let m; while((m = regex.exec(text))){ intervals.push([m.index, m.index + m[0].length]); if(findState.matches.length + intervals.length >= MAX_MATCHES) break; }
+        if(!intervals.length) continue;
+        const frag = document.createDocumentFragment(); let last = 0;
+        for(const [s,e] of intervals){
+          if(s>last) frag.appendChild(document.createTextNode(text.slice(last,s)));
+          const span=document.createElement('span'); span.className='hkyy-highlight'; span.textContent=text.slice(s,e); frag.appendChild(span); findState.matches.push({span, order: orderCounter++}); last=e; if(findState.matches.length>=MAX_MATCHES) break;
+        }
+        if(last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+        node.parentNode && node.parentNode.replaceChild(frag,node);
+        if(findState.activeIndex === -1 && findState.matches.length){
+          findState.matches.forEach((m,i)=>{ m.index=i; });
+          findState.activeIndex = 0; activateCurrent(); updateCount();
+          if(window.__HKYY_PERF_FIND) console.log('[FIND] first match in', (performance.now()-startTs).toFixed(1),'ms');
+          if(findState.postPasteAdvance && findState.matches.length>1){
+            findState.postPasteAdvance=false;
+            jumpRelative(+1);
+          }
+        }
+      }
+      if(idx >= nodes.length || findState.matches.length >= MAX_MATCHES){
+        // tamamlandı
+        findState.matches.forEach((m,i)=>{ m.index=i; });
+        if(findState.activeIndex === -1 && findState.matches.length){ findState.activeIndex=0; activateCurrent(); }
+        updateCount();
+        if(window.__HKYY_PERF_FIND) console.log('[FIND] total', findState.matches.length,'in', (performance.now()-startTs).toFixed(1),'ms');
+      } else {
+        // devam
+        scheduleNext();
+      }
+    }
+    function scheduleNext(){
+      if('requestIdleCallback' in window){
+        requestIdleCallback(processSlice,{timeout:60});
+      } else {
+        setTimeout(()=>processSlice({timeRemaining:()=>5}), 0);
+      }
+    }
+    // İlk dilim: ilk eşleşmeyi garanti etmek için 12ms'e kadar bloklu tarama (Chrome benzeri anında geri bildirim)
+    const hardStart = performance.now();
+    while(idx < nodes.length && findState.matches.length < 1 && (performance.now() - hardStart) < 12){
+      const node = nodes[idx++];
+      if(!node || !node.nodeValue) continue;
+      regex.lastIndex = 0;
+      const text = node.nodeValue;
+      if(!text.toLowerCase().includes(qLower)) continue;
+      const intervals=[]; let m; while((m = regex.exec(text))){ intervals.push([m.index, m.index + m[0].length]); if(intervals.length>=1) break; }
+      if(!intervals.length) continue;
+      const frag=document.createDocumentFragment(); let last=0;
+      const [s,e] = intervals[0];
+      if(s>last) frag.appendChild(document.createTextNode(text.slice(last,s)));
+      const span=document.createElement('span'); span.className='hkyy-highlight'; span.textContent=text.slice(s,e); frag.appendChild(span); findState.matches.push({span, order:0}); last=e;
+      if(last < text.length) frag.appendChild(document.createTextNode(text.slice(last)));
+      node.parentNode && node.parentNode.replaceChild(frag,node);
+      findState.matches.forEach((m,i)=>{ m.index=i; });
+      findState.activeIndex = 0; activateCurrent(); updateCount();
+      if(window.__HKYY_PERF_FIND) console.log('[FIND] first match (sync) in', (performance.now()-startTs).toFixed(1),'ms');
+      if(findState.postPasteAdvance && findState.matches.length>1){
+        findState.postPasteAdvance=false;
+        jumpRelative(+1);
+      }
+    }
+    if(findState.matches.length === 0){
+      // henüz ilk eşleşme yoksa normal dilimli taramaya devam
+      processSlice({timeRemaining:()=>8});
+    }
+    if(idx < nodes.length && findState.matches.length < MAX_MATCHES) scheduleNext();
+  }
+
+  function activateCurrent(){
+    findState.matches.forEach((m,i)=>{ if(m.span) m.span.classList.toggle('hkyy-highlight-active', i===findState.activeIndex); });
+    const cur = findState.matches[findState.activeIndex];
+    if(cur && cur.span){
+      try {
+        const r = cur.span.getBoundingClientRect();
+        const vh = window.innerHeight || document.documentElement.clientHeight;
+        if(r.top < 0 || r.bottom > vh){ cur.span.scrollIntoView({block:'center', inline:'nearest'}); }
+      } catch {}
+    }
+  }
+  function jumpRelative(delta){
+    if (!findState.matches.length){ // boşsa yeni aramayı tetikle
+      searchNow(); if(!findState.matches.length) return; }
+    findState.activeIndex = (findState.activeIndex + delta + findState.matches.length) % findState.matches.length;
+    activateCurrent(); updateCount();
+  }
+
+  // Kısayollar
+  window.addEventListener('keydown', async (e)=>{
+    if (e.defaultPrevented) return;
+    if ((e.ctrlKey||e.metaKey) && e.key==='f'){
+      // Chrome davranışı: her Ctrl+F sadece çubuğu açar ve input'u seçer; ileri gitmez
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      if (findState.container && findState.container.style.display!=='none'){
+        // zaten açık: sadece odakla & seç
+        try { findState.input.focus(); findState.input.select(); } catch {}
+        return;
+      }
+      // Kapalıysa aç ve preset uygula
+      let preset='';
+      try { const sel=String(getSelection()); if(sel.trim()) preset=sel.trim(); else if (state.lastCopied) preset=state.lastCopied.trim(); else { const clip=await navigator.clipboard.readText(); if(clip && clip.trim()) preset=clip.trim(); } } catch{}
+      openFindBar(preset);
+    }
+  }, true);
+
+  function apiOpenAndSearch(preset){ openFindBar(preset); }
+  function apiNext(){ jumpRelative(+1); }
+  R.findAPI = { open: apiOpenAndSearch, next: apiNext };
+  // Geri uyum: eski testler searchLastCopied bekliyor
+  if(!R.searchLastCopied){
+    R.searchLastCopied = function(){
+      // Seçili metin ya da lastCopied'i preset yap
+      let preset='';
+      try { const sel=String(getSelection()); if(sel.trim()) preset=sel.trim(); else if (state.lastCopied) preset=state.lastCopied.trim(); } catch {}
+      apiOpenAndSearch(preset);
+    };
+  }
 })();

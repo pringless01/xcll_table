@@ -121,9 +121,35 @@ chrome.action.onClicked.addListener((tab) => {
 // Klavye komutu (manifest commands) -> toggle
 chrome.commands &&
   chrome.commands.onCommand.addListener((cmd) => {
-    if (cmd === 'toggle-toolbar') {
-      chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-        if (tab?.id) toggleToolbarOnTab(tab.id);
+    chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+      if(!tab?.id) return;
+      if (cmd === 'toggle-toolbar') {
+        toggleToolbarOnTab(tab.id);
+        return;
+      }
+      if(cmd === 'mouse-back-block' || cmd === 'mouse-forward-block'){
+        try { chrome.storage.session.set({ __reco_lastSideNavTs: Date.now() }); } catch {}
+        try { chrome.tabs.sendMessage(tab.id, { type: 'reco-mouse-nav-block', dir: cmd==='mouse-back-block'?'back':'forward' }); } catch {}
+      }
+    });
+  });
+
+// Eğer yine de navigation oluşursa (sayfa change) ve çok taze bir side nav denemesi var ise ileri geri düzeltmeye çalış
+try {
+  chrome.tabs.onUpdated.addListener((tabId, info, tab)=>{
+    if(info.status==='loading'){
+      chrome.storage.session.get(['__reco_lastSideNavTs'], res =>{
+        const ts = res.__reco_lastSideNavTs || 0;
+        if(Date.now()-ts < 800){
+          // aktif tab mı?
+          chrome.tabs.query({active:true, currentWindow:true}, ([active])=>{
+            if(active && active.id===tabId){
+              // Orijinal sayfaya dönmek: ileri gitmeyi dene (back tetiklenmişse)
+              try { chrome.tabs.sendMessage(tabId, { type:'reco-force-forward' }); } catch {}
+            }
+          });
+        }
       });
     }
   });
+} catch {}
