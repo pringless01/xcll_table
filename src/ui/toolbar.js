@@ -205,8 +205,8 @@
       if (e.ctrlKey && e.shiftKey && k === 'e') { e.preventDefault(); btnXLSX.click(); }
     }, true);
 
-    // Drag (yalnızca sürükleme ikonuyla)
-    let dragging=false, sx=0, sy=0, ox=0, oy=0, lastSent=0;
+  // Drag (tüm toolbar yüzeyi, fakat buton tıklamalarıyla çakışmaması için threshold)
+  let dragging=false, sx=0, sy=0, ox=0, oy=0, lastSent=0, dragStarted=false;
     function clampPosition(x, y) {
       // Ölçüleri al
       const r = host.getBoundingClientRect();
@@ -226,27 +226,32 @@
       try { NS.updateToolbarPosition && NS.updateToolbarPosition(x, y); } catch {}
     }
     const startDrag = (e) => {
-      dragging = true; sx = e.clientX; sy = e.clientY; const r = host.getBoundingClientRect(); ox = r.left; oy = r.top;
-      e.preventDefault();
-      host.style.transform = 'none';
+      if(e.button!==0) return;
+      dragging = true; dragStarted=false; sx = e.clientX; sy = e.clientY; const r = host.getBoundingClientRect(); ox = r.left; oy = r.top;
+      host.style.transform='none';
     };
     const moveDrag = (e) => {
-      if (!dragging) return;
-      const nx = ox + (e.clientX - sx);
-      const ny = oy + (e.clientY - sy);
+      if(!dragging) return;
+      const dx = e.clientX - sx; const dy = e.clientY - sy;
+      if(!dragStarted && Math.hypot(dx,dy) < 5) return; // 5px threshold
+      if(!dragStarted){ dragStarted=true; wrap.classList.add('dragging'); }
+      const nx = ox + dx; const ny = oy + dy;
       const clamped = clampPosition(nx, ny);
-      // Eşzamanlı sekme güncellemesi için throttled persist
-      const now = Date.now();
-      if (now - lastSent > 50) {
-        lastSent = now;
-        try { NS.updateToolbarPosition && NS.updateToolbarPosition(clamped.x, clamped.y); } catch {}
-      }
+      const now = Date.now(); if(now - lastSent > 50){ lastSent=now; try { NS.updateToolbarPosition && NS.updateToolbarPosition(clamped.x, clamped.y);} catch {} }
     };
-    const endDrag = () => {
-      if (!dragging) return; dragging=false; clampCurrentAndPersist();
+    const endDrag = (e) => {
+      if(!dragging) return;
+      dragging=false;
+      wrap.classList.remove('dragging');
+      if(dragStarted){ clampCurrentAndPersist(); }
     };
-    // Shadow içine eklenen sürükleme butonundan drag başlat
-    btnDrag.addEventListener('mousedown', startDrag);
+    // Başlatma: hem drag handle hem de boş alan (buton olmayan) bölgeler
+    wrap.addEventListener('mousedown', (e)=>{
+      // Eğer tıklanan hedef butonsa ama kullanıcı sürüklemeye başlayacaksa threshold sonrası tıklama iptal edilir.
+      startDrag(e);
+    });
+    // Click cancel: drag gerçek başladıysa buton click olayını iptal et
+    wrap.addEventListener('click', (e)=>{ if(dragStarted) { e.stopPropagation(); e.preventDefault(); } }, true);
     document.addEventListener('mousemove', moveDrag);
     document.addEventListener('mouseup', endDrag);
 
