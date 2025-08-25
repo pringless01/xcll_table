@@ -33,6 +33,12 @@
     {
       "matches": ["<all_urls>"],
       "all_frames": true,
+      "js": ["src/reco/aux-apply.js"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
       "js": [
         "src/boot.js",
         "src/core/i18n.js",
