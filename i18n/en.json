@@ -1,0 +1,8 @@
+{
+  "toolbar.title": "Excel Selector",
+  "toolbar.toggle": "Toggle toolbar",
+  "messages.noSelection": "Please make a selection first",
+  "messages.noData": "No data",
+  "export.csv": "Export CSV",
+  "export.excel": "Export Excel"
+}

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "Hızlı Kopyala • Yapıştır • Ara (Backoffice özel)",
+  "version": "0.4.1",
+  "permissions": ["storage", "clipboardRead", "clipboardWrite", "activeTab", "scripting", "tabs"],
+  "host_permissions": ["https://backoffice.betcoapps.com/*"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    {
+      "matches": ["https://backoffice.betcoapps.com/*"],
+      "css": ["styles.css"],
+      "js": [
+        "lib/core.js",
+        "features/copyBubble.js",
+        "features/pasteBubble.js",
+        "features/searchBar.js",
+        "features/applyBind.js",
+        "main.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ]
+}
